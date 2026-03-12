@@ -1,0 +1,74 @@
+AI BUILD PROMPT – AUTONOMOUS TIER-1–5 TECH SUPPORT PLATFORM
+You are a principal software architect, AI systems engineer, DevOps architect, and product designer.
+Your task is to build a production-ready SaaS platform called PMO TechOps Support.
+This platform is an autonomous technical support intelligence system that functions like a high-end technology support firm assisting businesses with troubleshooting technical systems.
+The platform must feel like having a senior software engineer, DevOps engineer, and IT support team in your pocket.
+The system must work across most technology environments and integrations, diagnose problems, fix issues, and ideally prevent problems before they occur.
+The system must be easy to use for non-technical users while maintaining extremely high technical capability.
+The system should integrate the best features of modern support platforms, remote access tools, and intelligent AI diagnostics while avoiding runaway AI loops or uncontrolled compute costs.
+The system must include Tier 1 through Tier 5 support escalation that occurs automatically when issues cannot be resolved at lower levels.
+The platform must combine AI reasoning with structured frameworks, troubleshooting playbooks, knowledge bases, formulas, workflows, and diagnostic frameworks.
+The platform should operate similarly to a technology support firm that supports businesses.
+It should support troubleshooting across software systems, APIs, databases, infrastructure, integrations, deployment pipelines, and development environments.
+The system must support remote assistance including screen sharing, guided walkthroughs, screenshot analysis, and optional temporary system diagnostic access.
+The interface must remain simple, intuitive, and easy to navigate.
+The system should operate in three modes: standard support mode, power diagnostic mode, and autonomous monitoring mode.
+The platform architecture must support universal compatibility across systems using a connector architecture.
+Connector architecture allows the platform to diagnose issues across SaaS applications, cloud platforms, APIs, infrastructure environments, databases, and development repositories.
+Connector types include API connectors for SaaS tools and cloud services, log connectors for applications and infrastructure logs, database connectors for SQL and NoSQL databases, repository connectors for Git repositories and source code inspection, infrastructure connectors for deployment systems and cloud infrastructure, and remote session connectors for interactive assistance.
+The overall system architecture includes the following layers: frontend interface layer, application logic layer, diagnostic engine layer, AI reasoning layer, connector layer, and external system integration layer.
+The user workflow begins with issue submission.
+Users describe their problem and optionally upload logs, screenshots, or error messages.
+The system performs automatic signal detection.
+The system determines the appropriate support tier and begins diagnostics.
+The diagnostic cycle then proceeds through analysis, signal detection, root cause hypothesis, fix generation, and confidence scoring.
+If the confidence score is below a defined threshold or attempts exceed limits, the system escalates to the next support tier automatically.
+Support tiers must simulate a real technical support organization.
+Tier 1 Knowledge Support performs documentation lookup, knowledge base search, and error pattern matching.
+Tier 2 Technical Troubleshooting runs structured troubleshooting frameworks including fault tree analysis, dependency tracing, and configuration validation.
+Tier 3 Engineering Diagnostics analyzes logs, stack traces, integrations, deployments, and runtime environments.
+Tier 4 System Engineering analyzes infrastructure, architecture, distributed systems, CI/CD pipelines, and scaling problems.
+Tier 5 Software Engineering Analysis performs deep diagnostics including code inspection, dependency graph analysis, performance analysis, and patch recommendation generation.
+Each tier runs a diagnostic cycle consisting of problem analysis, signal detection, root cause identification, solution generation, and prevention recommendations.
+Each diagnostic attempt produces structured output including problem description, detected signals, environment context, root cause analysis, recommended fix steps, prevention suggestions, and a confidence score.
+To prevent infinite AI loops or runaway costs, strict guardrails must be implemented.
+Each tier must have attempt limits, runtime limits, and compute budgets.
+Example system parameters include max_attempts_per_tier = 3, tier_runtime_limit_seconds = 30, and case_budget containing max_tokens, max_runtime, and max_compute_cost.
+When these limits are reached the system escalates or pauses diagnostics rather than continuing infinite loops.
+Escalation logic example: if confidence_score < 0.7 AND attempts >= max_attempts_per_tier THEN escalate to next tier.
+If the user reports the issue persists after a solution attempt, escalation should also occur.
+The system must support remote assistance features similar to advanced technical support tools.
+Remote support features include screen sharing, guided walkthrough mode, screenshot analysis, and temporary diagnostic access.
+Screen sharing allows users to share their screen with the support system so the system can analyze UI elements, configuration panels, and console outputs.
+Guided walkthrough mode allows the system to highlight where the user should click and guide them through steps interactively.
+Screenshot analysis allows users to upload screenshots that the AI analyzes to detect error messages and configuration problems.
+Temporary system access allows users to grant secure, limited access to logs, configurations, or diagnostic endpoints for deeper troubleshooting.
+The platform must also include preventive monitoring.
+Preventive monitoring detects potential issues before they cause failures.
+Examples include dependency conflicts, deployment failures, database performance degradation, API rate limit warnings, and system error spikes.
+Preventive alerts notify users of risks before failures occur.
+Example alert: Potential build failure detected due to dependency update conflict.
+The system must maintain a structured knowledge base.
+Knowledge should be stored in frameworks, error pattern libraries, troubleshooting playbooks, and tool documentation mappings.
+Example schema definitions include frameworks table containing id, name, category, description, and diagnostic_steps.
+Error_patterns table containing id, error_message, system_type, possible_causes, fix_patterns, and confidence_weight.
+Troubleshooting_playbooks table containing id, problem_type, diagnostic_steps, fix_steps, and prevention_steps.
+System_connectors table containing id, name, connector_type, integration_method, and supported_actions.
+Every user issue becomes a support case.
+Cases table includes id, user_id, title, description, system_type, current_tier, status, and created_at.
+Signals table includes id, case_id, signal_type, severity, confidence, and timestamp.
+Diagnostic_attempts table includes id, case_id, tier, analysis, solution, confidence, runtime, and timestamp.
+Escalation_history table includes id, case_id, from_tier, to_tier, escalation_reason, and timestamp.
+The frontend interface must remain extremely simple.
+Primary interface sections include Dashboard, Submit Issue, Active Diagnostics, Remote Assistance, Resolved Cases, and System Alerts.
+The dashboard should display active issues, system alerts, diagnostic progress, escalation levels, and preventive warnings.
+AI operating modes include Standard Mode where users submit issues and diagnostics run automatically, Power Mode where deeper system inspection occurs, and Autonomous Mode where the system continuously monitors connected systems and alerts users to risks.
+Security features must include role-based access control, encrypted remote sessions, temporary access tokens, audit logs, and strict access permissions for integrations.
+Recommended technology stack includes React with TypeScript and Tailwind for the frontend interface, Node.js with Express for the backend application layer, PostgreSQL for the database, vector search and embeddings for knowledge retrieval, and a retrieval-augmented generation architecture for AI diagnostics.
+The platform should support deployment as a scalable SaaS service.
+The business model should use a subscription SaaS structure.
+Example tiers include Individual for solo developers and small users, Professional for small teams, Business for organizations with multiple integrations and systems, and Enterprise for large organizations with advanced diagnostics, unlimited integrations, and priority support capabilities.
+The key differentiator of this platform is that most AI tools simply answer questions or generate code.
+This platform performs structured diagnostics, root cause analysis, and guided technical problem resolution across entire technology stacks.
+It behaves like an autonomous technical support organization capable of diagnosing and fixing issues across software, infrastructure, integrations, and operational systems.
+Expected outputs from the system builder include full system architecture, database schema, API endpoints, diagnostic engine logic, escalation logic, workflow engine implementation, frontend interface design, remote assistance modules, integration connector framework, deployment instructions, and technical documenta
