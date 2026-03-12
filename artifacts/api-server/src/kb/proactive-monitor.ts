@@ -1,7 +1,6 @@
 import { db, connectorHealthTable, casesTable } from "@workspace/db";
-import { eq, and, lt, sql } from "drizzle-orm";
-import { lookupKB, buildDecisionTree } from "./knowledge-base";
-import { buildDecisionTree as buildTree } from "./decision-engine";
+import { eq, lt, sql } from "drizzle-orm";
+import { lookupKB } from "./knowledge-base";
 
 export interface MonitorEvent {
   type: "connector_down" | "connector_degraded" | "case_auto_created" | "self_heal_triggered";

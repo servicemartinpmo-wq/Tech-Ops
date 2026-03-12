@@ -75,7 +75,7 @@ const ESCALATION_PATHS: Record<IssueSeverity, EscalationPath> = {
 function buildStepsFromKBEntry(entry: KBEntry, severity: IssueSeverity): DecisionStep[] {
   const steps: DecisionStep[] = entry.resolutionSteps.map((step, idx) => {
     const isLast = idx === entry.resolutionSteps.length - 1;
-    const isAutomatic = entry.selfHealable && idx < 2;
+    const isAutomatic = !!entry.selfHealable && idx < 2;
     return {
       stepId: `STEP-${idx + 1}`,
       action: step,

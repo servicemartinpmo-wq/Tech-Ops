@@ -164,7 +164,7 @@ export default function CasesList() {
                         <span className="text-xs font-mono text-slate-600">#{c.id.toString().padStart(4, '0')}</span>
                         <h3 className="font-bold text-white group-hover:text-cyan-400 transition-colors">{c.title}</h3>
                         <Badge variant={STATUS_VARIANTS[c.status] || "neutral"}>
-                          {c.status === "draft" && <FileEdit className="w-3 h-3 mr-1" />}
+                          {(c.status as string) === "draft" && <FileEdit className="w-3 h-3 mr-1" />}
                           {STATUS_LABELS[c.status] || c.status}
                         </Badge>
                         {(c.priority === 'high' || c.priority === 'critical') && (

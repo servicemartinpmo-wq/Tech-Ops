@@ -474,7 +474,7 @@ export default function KnowledgeBase() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {entry.selfHealable && <Zap className="w-3.5 h-3.5 text-emerald-400" title="Auto-healable" />}
+                        {entry.selfHealable && <Zap className="w-3.5 h-3.5 text-emerald-400" aria-label="Auto-healable" />}
                         <span className="text-xs font-bold" style={{ color: successRate >= 80 ? "#00ff88" : successRate >= 60 ? "#ffb800" : "#ff3355" }}>{successRate}%</span>
                       </div>
                     </div>

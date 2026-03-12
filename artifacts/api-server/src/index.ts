@@ -34,21 +34,28 @@ async function initStripe() {
   }
 }
 
-const rawPort = process.env["PORT"];
+async function main() {
+  const rawPort = process.env["PORT"];
 
-if (!rawPort) {
-  throw new Error("PORT environment variable is required but was not provided.");
+  if (!rawPort) {
+    throw new Error("PORT environment variable is required but was not provided.");
+  }
+
+  const port = Number(rawPort);
+
+  if (Number.isNaN(port) || port <= 0) {
+    throw new Error(`Invalid PORT value: "${rawPort}"`);
+  }
+
+  await initStripe();
+
+  app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+    startProactiveMonitor(5 * 60 * 1000);
+  });
 }
 
-const port = Number(rawPort);
-
-if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
-
-await initStripe();
-
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-  startProactiveMonitor(5 * 60 * 1000);
+main().catch((err) => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
 });

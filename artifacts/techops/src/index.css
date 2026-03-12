@@ -218,12 +218,6 @@
     text-shadow: 0 0 8px rgba(255,51,85,0.5);
   }
 
-  .hud-element {
-    border: 1px solid rgba(0,240,255,0.2);
-    background: linear-gradient(135deg, rgba(0,240,255,0.05) 0%, rgba(0,0,0,0.3) 100%);
-    box-shadow: 0 0 20px rgba(0,240,255,0.05);
-  }
-
   .radial-gauge {
     background: conic-gradient(from 180deg, var(--gauge-color, #00f0ff) var(--gauge-percent, 0%), transparent var(--gauge-percent, 0%));
   }
@@ -252,6 +246,73 @@
 @keyframes ticker {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
+}
+
+@keyframes card-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(0,240,255,0.08), 0 8px 32px rgba(0,0,0,0.35); }
+  50% { box-shadow: 0 0 0 1px rgba(0,240,255,0.18), 0 8px 32px rgba(0,0,0,0.35), 0 0 24px rgba(0,240,255,0.06); }
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(0,240,255,0.12); }
+  50% { border-color: rgba(0,240,255,0.28); }
+}
+
+@keyframes sphere-breathe {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.03); filter: brightness(1.15); }
+}
+
+@keyframes ring-spin-cw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ring-spin-ccw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes orbit-dot {
+  from { transform: rotate(0deg) translateX(var(--orbit-r)) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(var(--orbit-r)) rotate(-360deg); }
+}
+
+@keyframes aurora {
+  0% { transform: translate(-20%, -20%) rotate(0deg) scale(1); }
+  33% { transform: translate(10%, -30%) rotate(120deg) scale(1.2); }
+  66% { transform: translate(-10%, 20%) rotate(240deg) scale(0.9); }
+  100% { transform: translate(-20%, -20%) rotate(360deg) scale(1); }
+}
+
+@keyframes aurora2 {
+  0% { transform: translate(30%, 10%) rotate(0deg) scale(1.1); }
+  33% { transform: translate(-20%, 30%) rotate(-120deg) scale(0.9); }
+  66% { transform: translate(20%, -20%) rotate(-240deg) scale(1.2); }
+  100% { transform: translate(30%, 10%) rotate(-360deg) scale(1.1); }
+}
+
+@keyframes particle-drift {
+  0% { transform: translate(0, 0) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 0.4; }
+  100% { transform: translate(var(--drift-x, 40px), var(--drift-y, -80px)) scale(1); opacity: 0; }
+}
+
+@keyframes status-ring {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.4); opacity: 0; }
+}
+
+.card-pulse-anim {
+  animation: card-pulse 3s ease-in-out infinite;
+}
+
+.hud-element {
+  border: 1px solid rgba(0,240,255,0.2);
+  background: linear-gradient(135deg, rgba(0,240,255,0.05) 0%, rgba(0,0,0,0.3) 100%);
+  box-shadow: 0 0 20px rgba(0,240,255,0.05);
+  animation: card-pulse 4s ease-in-out infinite;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

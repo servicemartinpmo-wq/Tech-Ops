@@ -7,11 +7,6 @@ import { useEffect, useRef, useState } from "react";
 
 const BASE = import.meta.env.BASE_URL;
 
-const heroVideos = [
-  "https://v.ftcdn.net/19/15/50/43/240_F_1915504335_dvzeqyHSQ1IOUmMdHc0KkANgxylZRvvc_ST.mp4",
-  "https://v.ftcdn.net/19/24/42/66/240_F_1924426691_28pBjsIj3DS2JBk1nXSIK9mzDppch1Cp_ST.mp4",
-];
-
 const features = [
   {
     image: `${BASE}images/feature-diagnostic.png`,
@@ -63,40 +58,83 @@ const features = [
   },
 ];
 
+function CinematicBackground() {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[#04060e]" />
+
+      <div
+        className="absolute w-[140%] h-[140%] -left-[20%] -top-[20%] rounded-full opacity-[0.28]"
+        style={{
+          background: "radial-gradient(ellipse 60% 50% at 50% 50%, #0a4080 0%, #061428 40%, transparent 70%)",
+          animation: "aurora 28s ease-in-out infinite",
+          filter: "blur(40px)",
+        }}
+      />
+      <div
+        className="absolute w-[120%] h-[120%] -right-[10%] -bottom-[10%] rounded-full opacity-[0.22]"
+        style={{
+          background: "radial-gradient(ellipse 50% 60% at 50% 50%, #4a0870 0%, #1a0440 40%, transparent 70%)",
+          animation: "aurora2 22s ease-in-out infinite",
+          filter: "blur(50px)",
+        }}
+      />
+      <div
+        className="absolute w-[80%] h-[80%] left-[10%] top-[10%] rounded-full opacity-[0.15]"
+        style={{
+          background: "radial-gradient(ellipse 70% 70% at 50% 50%, #002a4a 0%, transparent 70%)",
+          animation: "aurora 18s ease-in-out infinite reverse",
+          filter: "blur(30px)",
+        }}
+      />
+
+      <div
+        className="absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(0,240,255,1) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,240,255,1) 1px, transparent 1px)
+          `,
+          backgroundSize: "80px 80px",
+        }}
+      />
+
+      {[...Array(18)].map((_, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            width: `${2 + (i % 3)}px`,
+            height: `${2 + (i % 3)}px`,
+            left: `${(i * 37 + 11) % 95}%`,
+            top: `${(i * 53 + 7) % 90}%`,
+            background: i % 3 === 0 ? "#00f0ff" : i % 3 === 1 ? "#a855f7" : "#3b82f6",
+            opacity: 0.3 + (i % 4) * 0.1,
+            animation: `particle-drift ${8 + (i % 6) * 2.5}s ease-in-out infinite`,
+            animationDelay: `${i * 0.7}s`,
+            "--drift-x": `${((i % 5) - 2) * 30}px`,
+            "--drift-y": `${-40 - (i % 4) * 20}px`,
+          } as React.CSSProperties}
+        />
+      ))}
+
+      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-[#04060e]" />
+      <div className="absolute inset-0 bg-gradient-to-r from-[#04060e]/60 via-transparent to-[#04060e]/60" />
+      <div className="absolute bottom-0 left-0 right-0 h-72 bg-gradient-to-t from-[#04060e] to-transparent" />
+    </div>
+  );
+}
+
 function ShowroomHero({ onLogin }: { onLogin: () => void }) {
-  const [activeVideo, setActiveVideo] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll({ target: containerRef });
-  const y = useTransform(scrollY, [0, 600], [0, 120]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveVideo(prev => (prev + 1) % heroVideos.length);
-    }, 12000);
-    return () => clearInterval(timer);
-  }, []);
+  const y = useTransform(scrollY, [0, 600], [0, 100]);
 
   return (
-    <div ref={containerRef} className="relative h-screen min-h-[700px] overflow-hidden bg-[#06080f]">
+    <div ref={containerRef} className="relative h-screen min-h-[700px] overflow-hidden">
       <motion.div className="absolute inset-0" style={{ y }}>
-        {heroVideos.map((src, i) => (
-          <motion.video
-            key={src}
-            src={src}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-            animate={{ opacity: activeVideo === i ? 1 : 0 }}
-            transition={{ duration: 1.4, ease: "easeInOut" }}
-          />
-        ))}
+        <CinematicBackground />
       </motion.div>
-
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-[#06080f]" />
-      <div className="absolute inset-0 bg-gradient-to-r from-[#06080f]/40 via-transparent to-[#06080f]/40" />
-      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[#06080f] to-transparent" />
 
       <nav className="relative z-20 px-8 py-6 flex justify-between items-center max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
@@ -116,26 +154,29 @@ function ShowroomHero({ onLogin }: { onLogin: () => void }) {
         <motion.div
           initial={{ opacity: 0, y: 60 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3, duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-sm font-medium text-white mb-10"
+            className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white/[0.07] backdrop-blur-md border border-white/[0.14] text-sm font-medium text-white mb-10"
           >
-            <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,240,255,0.8)]" />
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" style={{ animation: "status-ring 2s ease-in-out infinite" }} />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400 shadow-[0_0_8px_rgba(0,240,255,0.9)]" />
+            </span>
             Powered by the Apphia Engine
           </motion.div>
 
           <h1 className="font-display text-6xl md:text-8xl font-black text-white leading-[0.95] tracking-tight mb-8 drop-shadow-2xl">
-            Technology,<br />
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-              engineered.
+            Support,<br />
+            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent" style={{ filter: "drop-shadow(0 0 30px rgba(0,240,255,0.25))" }}>
+              Engineered.
             </span>
           </h1>
 
-          <p className="text-lg md:text-xl text-white/70 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
+          <p className="text-lg md:text-xl text-white/65 mb-12 max-w-2xl mx-auto leading-relaxed font-light">
             The autonomous operations platform that diagnoses issues before they become outages, monitors every integration in your stack, and gives your team the intelligence to move at machine speed.
           </p>
 
@@ -143,7 +184,7 @@ function ShowroomHero({ onLogin }: { onLogin: () => void }) {
             <Button
               onClick={onLogin}
               size="lg"
-              className="h-14 px-10 text-lg group rounded-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_40px_rgba(0,240,255,0.3)]"
+              className="h-14 px-10 text-lg group rounded-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold shadow-[0_0_40px_rgba(0,240,255,0.35)] hover:shadow-[0_0_60px_rgba(0,240,255,0.5)] transition-all duration-300"
             >
               Enter the Platform
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -158,14 +199,15 @@ function ShowroomHero({ onLogin }: { onLogin: () => void }) {
         </motion.div>
       </div>
 
-      <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-3 z-20">
-        {heroVideos.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveVideo(i)}
-            className={`h-1 rounded-full transition-all duration-500 ${activeVideo === i ? "w-8 bg-cyan-400" : "w-2 bg-white/30"}`}
-          />
-        ))}
+      <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
+        <motion.div
+          animate={{ y: [0, 6, 0] }}
+          transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+          className="flex flex-col items-center gap-1 opacity-40"
+        >
+          <div className="w-px h-8 bg-gradient-to-b from-transparent to-cyan-400" />
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,240,255,0.8)]" />
+        </motion.div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useGetDashboardStats, useGetRecentActivity } from "@workspace/api-client-react";
 import { Card } from "@/components/ui";
-import { Activity, AlertCircle, CheckCircle2, Clock, Server, Zap, Shield, Brain, TrendingUp, ArrowUpRight, BookOpen, GitBranch, BarChart3 } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle2, Clock, Server, Zap, Shield, Brain, TrendingUp, ArrowUpRight, BookOpen, GitBranch, BarChart3, Mail, Cloud, Database, Wifi, Lock, BarChart2 } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
@@ -28,76 +28,137 @@ function AnimatedCounter({ value, suffix = "" }: { value: number | string; suffi
   return <>{display}{suffix}</>;
 }
 
-function RelationshipMap() {
+function PulsingSphere() {
   const apps = [
-    { id: "email", label: "Email", x: 50, y: 30, status: "healthy" },
-    { id: "cloud", label: "Cloud", x: 250, y: 50, status: "healthy" },
-    { id: "database", label: "Database", x: 150, y: 140, status: "healthy" },
-    { id: "network", label: "Network", x: 350, y: 130, status: "degraded" },
-    { id: "security", label: "Security", x: 80, y: 220, status: "healthy" },
-    { id: "monitoring", label: "Monitor", x: 300, y: 230, status: "healthy" },
+    { Icon: Mail, label: "Email", color: "#00f0ff", angle: 0 },
+    { Icon: Cloud, label: "Cloud", color: "#3b82f6", angle: 60 },
+    { Icon: Database, label: "Database", color: "#a855f7", angle: 120 },
+    { Icon: Wifi, label: "Network", color: "#ffb800", angle: 180 },
+    { Icon: Lock, label: "Security", color: "#00ff88", angle: 240 },
+    { Icon: BarChart2, label: "Monitor", color: "#ff00e5", angle: 300 },
   ];
 
-  const connections = [
-    { from: "email", to: "cloud" },
-    { from: "cloud", to: "database" },
-    { from: "database", to: "security" },
-    { from: "network", to: "cloud" },
-    { from: "monitoring", to: "network" },
-    { from: "monitoring", to: "database" },
-    { from: "security", to: "monitoring" },
-  ];
-
-  const getApp = (id: string) => apps.find(a => a.id === id)!;
-  const statusColor = (s: string) => s === "healthy" ? "#00ff88" : s === "degraded" ? "#ffb800" : "#ff3355";
+  const cx = 210;
+  const cy = 140;
+  const orbitR = 108;
 
   return (
-    <svg viewBox="0 0 420 280" className="w-full h-full">
-      <defs>
-        <filter id="glow">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
+    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+      <svg viewBox="0 0 420 280" className="w-full h-full absolute inset-0">
+        <defs>
+          <radialGradient id="sphereGrad" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stopColor="#1af0ff" stopOpacity="0.9" />
+            <stop offset="35%" stopColor="#0070c8" stopOpacity="0.85" />
+            <stop offset="70%" stopColor="#0a1a6e" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#020614" stopOpacity="0.95" />
+          </radialGradient>
+          <radialGradient id="sphereGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.25" />
+            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          </radialGradient>
+          <filter id="sglow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="softshadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="10" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="nodeglow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
 
-      {connections.map((conn, i) => {
-        const from = getApp(conn.from);
-        const to = getApp(conn.to);
+        <circle cx={cx} cy={cy} r="130" fill="url(#sphereGlow)" />
+        <circle cx={cx} cy={cy} r="90" fill="url(#sphereGlow)" opacity="0.6" />
+
+        <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: "ring-spin-cw 22s linear infinite" }}>
+          <ellipse cx={cx} cy={cy} rx={orbitR + 10} ry="22" fill="none"
+            stroke="rgba(0,240,255,0.18)" strokeWidth="1" strokeDasharray="4 6" />
+        </g>
+        <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: "ring-spin-ccw 16s linear infinite" }}>
+          <ellipse cx={cx} cy={cy} rx={orbitR - 8} ry={orbitR - 8} fill="none"
+            stroke="rgba(168,85,247,0.14)" strokeWidth="1" strokeDasharray="2 8" />
+        </g>
+        <g style={{ transformOrigin: `${cx}px ${cy}px`, animation: "ring-spin-cw 30s linear infinite" }}>
+          <ellipse cx={cx} cy={cy} rx="130" ry="30" fill="none"
+            stroke="rgba(59,130,246,0.10)" strokeWidth="1" strokeDasharray="6 10" />
+        </g>
+
+        {apps.map((app, i) => {
+          const rad = (app.angle * Math.PI) / 180;
+          const nx = cx + orbitR * Math.cos(rad);
+          const ny = cy + (orbitR * 0.55) * Math.sin(rad);
+          return (
+            <g key={i}>
+              <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={`${app.color}22`} strokeWidth="1" />
+              <circle r="2.5" fill={app.color} opacity="0.9" filter="url(#nodeglow)">
+                <animateMotion
+                  dur={`${3.5 + i * 0.4}s`}
+                  repeatCount="indefinite"
+                  path={`M${cx},${cy} L${nx},${ny} L${cx},${cy}`}
+                />
+              </circle>
+            </g>
+          );
+        })}
+
+        <circle cx={cx} cy={cy} r="48" fill="url(#sphereGrad)" filter="url(#sglow)"
+          style={{ animation: "sphere-breathe 4s ease-in-out infinite" }} />
+        <circle cx={cx} cy={cy} r="44" fill="none" stroke="rgba(0,240,255,0.35)" strokeWidth="1.5" />
+        <circle cx={cx - 14} cy={cy - 14} r="12" fill="rgba(255,255,255,0.07)" />
+
+        <circle cx={cx} cy={cy} r="56" fill="none" stroke="rgba(0,240,255,0.12)" strokeWidth="1"
+          style={{ animation: "sphere-breathe 4s ease-in-out infinite 0.5s" }} />
+        <circle cx={cx} cy={cy} r="66" fill="none" stroke="rgba(0,240,255,0.06)" strokeWidth="1"
+          style={{ animation: "sphere-breathe 4s ease-in-out infinite 1s" }} />
+
+        {apps.map((app, i) => {
+          const rad = (app.angle * Math.PI) / 180;
+          const nx = cx + orbitR * Math.cos(rad);
+          const ny = cy + (orbitR * 0.55) * Math.sin(rad);
+          return (
+            <g key={`node-${i}`} filter="url(#nodeglow)">
+              <circle cx={nx} cy={ny} r="18" fill="rgba(12,14,26,0.95)"
+                stroke={`${app.color}50`} strokeWidth="1.5" />
+              <circle cx={nx} cy={ny} r="20" fill="none"
+                stroke={`${app.color}20`} strokeWidth="1"
+                style={{ animation: `sphere-breathe ${3 + i * 0.3}s ease-in-out infinite ${i * 0.4}s` }} />
+              <text x={nx} y={ny + 24 + 8} textAnchor="middle"
+                fill={app.color} fontSize="7" fontFamily="Plus Jakarta Sans" opacity="0.85">
+                {app.label}
+              </text>
+            </g>
+          );
+        })}
+
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="rgba(255,255,255,0.9)"
+          fontSize="8" fontFamily="Plus Jakarta Sans" fontWeight="600" letterSpacing="1">
+          APPHIA
+        </text>
+      </svg>
+
+      {apps.map((app, i) => {
+        const rad = (app.angle * Math.PI) / 180;
+        const nx = cx + orbitR * Math.cos(rad);
+        const ny = cy + (orbitR * 0.55) * Math.sin(rad);
+        const pctX = (nx / 420) * 100;
+        const pctY = (ny / 280) * 100;
         return (
-          <g key={i}>
-            <line
-              x1={from.x + 30} y1={from.y + 15}
-              x2={to.x + 30} y2={to.y + 15}
-              stroke="rgba(0,240,255,0.15)"
-              strokeWidth="1"
+          <div
+            key={`icon-${i}`}
+            className="absolute"
+            style={{ left: `${pctX}%`, top: `${pctY}%`, transform: "translate(-50%, -50%)" }}
+          >
+            <app.Icon
+              style={{ color: app.color, width: 13, height: 13, filter: `drop-shadow(0 0 4px ${app.color})` }}
             />
-            <circle r="2" fill="#00f0ff" opacity="0.6" filter="url(#glow)">
-              <animateMotion
-                dur={`${2 + i * 0.5}s`}
-                repeatCount="indefinite"
-                path={`M${from.x + 30},${from.y + 15} L${to.x + 30},${to.y + 15}`}
-              />
-            </circle>
-          </g>
+          </div>
         );
       })}
-
-      {apps.map(app => (
-        <g key={app.id}>
-          <rect
-            x={app.x} y={app.y} width="60" height="30" rx="8"
-            fill="rgba(22,22,31,0.9)"
-            stroke="rgba(0,240,255,0.2)"
-            strokeWidth="1"
-          />
-          <text x={app.x + 30} y={app.y + 18} textAnchor="middle" fill="#e2e8f0" fontSize="9" fontFamily="Plus Jakarta Sans">{app.label}</text>
-          <circle cx={app.x + 52} cy={app.y + 8} r="3" fill={statusColor(app.status)} filter="url(#glow)" />
-        </g>
-      ))}
-    </svg>
+    </div>
   );
 }
 
@@ -188,14 +249,14 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-display font-bold text-white flex items-center gap-2">
                 <Server className="w-5 h-5 text-cyan-400" />
-                App Relationship Map
+                Apphia Command Core
               </h2>
               <Link href="/connectors" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1">
                 View All <ArrowUpRight className="w-3 h-3" />
               </Link>
             </div>
             <div className="h-[280px]">
-              <RelationshipMap />
+              <PulsingSphere />
             </div>
           </Card>
         </motion.div>
@@ -215,12 +276,19 @@ export default function Dashboard() {
                 { label: "Healthy", count: stats?.connectorHealth.healthy || 0, color: "#00ff88" },
                 { label: "Degraded", count: stats?.connectorHealth.degraded || 0, color: "#ffb800" },
                 { label: "Down", count: stats?.connectorHealth.down || 0, color: "#ff3355" },
-              ].map(item => (
+              ].map((item, idx) => (
                 <div key={item.label} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border-[3px] flex items-center justify-center" style={{ borderColor: `${item.color}30` }}>
-                    <span className="text-lg font-bold" style={{ color: item.color }}>{item.count}</span>
+                  <div className="relative w-10 h-10 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full"
+                      style={{ border: `2px solid ${item.color}30`, animation: `status-ring ${2.5 + idx * 0.4}s ease-in-out infinite` }} />
+                    <div className="w-10 h-10 rounded-full border-[2px] flex items-center justify-center"
+                      style={{ borderColor: `${item.color}50`, background: `${item.color}08`, boxShadow: `0 0 12px ${item.color}20` }}>
+                      <span className="text-base font-bold" style={{ color: item.color }}>{item.count}</span>
+                    </div>
                   </div>
-                  <span className="text-sm text-slate-400">{item.label}</span>
+                  <div>
+                    <p className="text-sm text-slate-300">{item.label}</p>
+                  </div>
                 </div>
               ))}
             </div>
