@@ -15,11 +15,16 @@ import ApphiaChat from "@/pages/apphia/chat";
 import PreferencesQuiz from "@/pages/preferences/quiz";
 import Billing from "@/pages/billing";
 import Connectors from "@/pages/connectors";
+import ConnectorDetail from "@/pages/connectors/detail";
 import AutomationCenter from "@/pages/automation";
 import BatchDiagnostics from "@/pages/batches";
 import SystemAlerts from "@/pages/alerts";
 import VoicePanel from "@/pages/voice";
 import Settings from "@/pages/settings";
+import Security from "@/pages/security";
+import StackIntelligence from "@/pages/stack-intelligence";
+import PMOOps from "@/pages/pmo-ops";
+import RemoteAssistance from "@/pages/remote-assistance";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -29,7 +34,11 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   const [, setLocation] = useLocation();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-showroom-dark">
+        <div className="w-10 h-10 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(0,240,255,0.3)]"></div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
@@ -57,11 +66,16 @@ function Router() {
       <Route path="/preferences"><ProtectedRoute component={PreferencesQuiz} /></Route>
       <Route path="/billing"><ProtectedRoute component={Billing} /></Route>
       <Route path="/connectors"><ProtectedRoute component={Connectors} /></Route>
+      <Route path="/connectors/:name"><ProtectedRoute component={ConnectorDetail} /></Route>
       <Route path="/automation"><ProtectedRoute component={AutomationCenter} /></Route>
       <Route path="/batches"><ProtectedRoute component={BatchDiagnostics} /></Route>
       <Route path="/alerts"><ProtectedRoute component={SystemAlerts} /></Route>
       <Route path="/voice"><ProtectedRoute component={VoicePanel} /></Route>
       <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
+      <Route path="/security"><ProtectedRoute component={Security} /></Route>
+      <Route path="/stack-intelligence"><ProtectedRoute component={StackIntelligence} /></Route>
+      <Route path="/pmo-ops"><ProtectedRoute component={PMOOps} /></Route>
+      <Route path="/remote-assistance"><ProtectedRoute component={RemoteAssistance} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

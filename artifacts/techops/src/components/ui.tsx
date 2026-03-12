@@ -13,11 +13,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = "inline-flex items-center justify-center font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap active:scale-[0.98]";
     
     const variants = {
-      primary: "bg-gradient-to-b from-primary to-blue-700 text-white shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 border border-blue-600",
-      secondary: "bg-white text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300",
-      outline: "bg-transparent text-primary border border-primary/20 hover:bg-primary/5",
-      ghost: "bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-      destructive: "bg-gradient-to-b from-destructive to-red-600 text-white shadow-md shadow-destructive/20 hover:shadow-lg hover:shadow-destructive/30 border border-red-600",
+      primary: "bg-gradient-to-b from-cyan-400 to-cyan-600 text-showroom-dark shadow-md shadow-cyan-500/20 hover:shadow-lg hover:shadow-cyan-500/30 border border-cyan-500/50",
+      secondary: "bg-showroom-surface text-slate-200 border border-showroom-border shadow-sm hover:bg-showroom-card hover:border-cyan-500/20",
+      outline: "bg-transparent text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/10",
+      ghost: "bg-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200",
+      destructive: "bg-gradient-to-b from-red-500 to-red-700 text-white shadow-md shadow-red-500/20 hover:shadow-lg hover:shadow-red-500/30 border border-red-600/50",
     };
 
     const sizes = {
@@ -42,7 +42,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export const Card = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("glass-card rounded-2xl overflow-hidden", className)} {...props}>
+  <div className={cn("glass-card rounded-2xl overflow-hidden laminated-hover", className)} {...props}>
     {children}
   </div>
 );
@@ -53,10 +53,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputHTMLAttributes<HTML
       <input
         ref={ref}
         className={cn(
-          "flex w-full bg-white px-4 py-3 text-sm transition-all duration-200",
-          "border border-slate-200 rounded-xl",
-          "placeholder:text-slate-400 text-slate-900",
-          "focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10",
+          "flex w-full bg-showroom-panel px-4 py-3 text-sm transition-all duration-200",
+          "border border-showroom-border rounded-xl",
+          "placeholder:text-slate-500 text-slate-200",
+          "focus:outline-none focus:border-cyan-500/50 focus:ring-4 focus:ring-cyan-500/10",
           "disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
@@ -69,11 +69,11 @@ Input.displayName = "Input";
 
 export const Badge = ({ children, variant = "default", className }: { children: React.ReactNode, variant?: "default" | "success" | "warning" | "error" | "neutral", className?: string }) => {
   const variants = {
-    default: "bg-primary/10 text-primary border-primary/20",
-    success: "bg-green-100 text-green-700 border-green-200",
-    warning: "bg-amber-100 text-amber-700 border-amber-200",
-    error: "bg-red-100 text-red-700 border-red-200",
-    neutral: "bg-slate-100 text-slate-600 border-slate-200",
+    default: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+    success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    error: "bg-red-500/10 text-red-400 border-red-500/20",
+    neutral: "bg-white/5 text-slate-400 border-white/10",
   };
   
   return (

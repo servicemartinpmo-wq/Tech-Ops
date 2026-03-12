@@ -12,7 +12,7 @@ export default function PreferencesQuiz() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentStep, setCurrentStep] = useState(0);
 
-  if (isQuizLoading || isProfileLoading) return <div className="p-12 text-center">Loading...</div>;
+  if (isQuizLoading || isProfileLoading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div></div>;
 
   const questions = quiz?.questions || [];
   const hasCompleted = profile?.completed;
@@ -25,39 +25,34 @@ export default function PreferencesQuiz() {
   };
 
   const handleSubmit = () => {
-    submitQuiz({ data: { answers } }, {
-      onSuccess: () => refetch()
-    });
+    submitQuiz({ data: { answers } }, { onSuccess: () => refetch() });
   };
 
   if (hasCompleted) {
     return (
-      <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in">
-        <div className="text-center mb-12">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10 text-green-500" />
+      <div className="max-w-3xl mx-auto space-y-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+          <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+            <CheckCircle2 className="w-10 h-10 text-emerald-400" />
           </div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Profile Calibrated</h1>
+          <h1 className="text-3xl font-display font-bold text-white">Profile Calibrated</h1>
           <p className="text-slate-500 mt-2 text-lg">Apphia Engine is now tailored to your operational style.</p>
-        </div>
+        </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-6 border-primary/20 bg-white">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Communication</h3>
-            <p className="text-2xl font-display font-bold text-primary capitalize">{profile.communicationStyle}</p>
-          </Card>
-          <Card className="p-6 border-primary/20 bg-white">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Detail Level</h3>
-            <p className="text-2xl font-display font-bold text-primary capitalize">{profile.detailLevel}</p>
-          </Card>
-          <Card className="p-6 border-primary/20 bg-white">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Proactivity</h3>
-            <p className="text-2xl font-display font-bold text-primary capitalize">{profile.proactivity}</p>
-          </Card>
-          <Card className="p-6 border-primary/20 bg-white">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Technical Depth</h3>
-            <p className="text-2xl font-display font-bold text-primary capitalize">{profile.technicalDepth}</p>
-          </Card>
+          {[
+            { label: "Communication", value: profile.communicationStyle },
+            { label: "Detail Level", value: profile.detailLevel },
+            { label: "Proactivity", value: profile.proactivity },
+            { label: "Technical Depth", value: profile.technicalDepth },
+          ].map((item, i) => (
+            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+              <Card className="p-6 neon-border">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">{item.label}</h3>
+                <p className="text-2xl font-display font-bold text-cyan-400 capitalize">{item.value}</p>
+              </Card>
+            </motion.div>
+          ))}
         </div>
       </div>
     );
@@ -66,22 +61,22 @@ export default function PreferencesQuiz() {
   const currentQ = questions[currentStep];
 
   return (
-    <div className="max-w-2xl mx-auto py-12 animate-in fade-in">
-      <div className="text-center mb-12">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-6">
+    <div className="max-w-2xl mx-auto py-12">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-cyan-500/10 text-cyan-400 mb-6 border border-cyan-500/20">
           <Settings2 className="w-8 h-8" />
         </div>
-        <h1 className="text-3xl font-display font-bold text-slate-900">Style Calibration</h1>
+        <h1 className="text-3xl font-display font-bold text-white">Style Calibration</h1>
         <p className="text-slate-500 mt-2">Help Apphia Engine understand how you prefer to work.</p>
         
         <div className="flex gap-2 justify-center mt-8">
           {questions.map((_, i) => (
-            <div key={i} className={`h-2 rounded-full transition-all duration-300 ${i <= currentStep ? 'w-8 bg-primary' : 'w-2 bg-slate-200'}`} />
+            <div key={i} className={`h-2 rounded-full transition-all duration-300 ${i <= currentStep ? 'w-8 bg-cyan-400 shadow-[0_0_8px_rgba(0,240,255,0.4)]' : 'w-2 bg-white/10'}`} />
           ))}
         </div>
-      </div>
+      </motion.div>
 
-      <Card className="p-8 shadow-xl shadow-primary/5 bg-white/80 overflow-hidden relative">
+      <Card className="p-8 neon-border overflow-hidden relative">
         <AnimatePresence mode="wait">
           {currentQ && (
             <motion.div
@@ -91,7 +86,7 @@ export default function PreferencesQuiz() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">{currentQ.question}</h2>
+              <h2 className="text-2xl font-display font-bold text-white mb-6">{currentQ.question}</h2>
               <div className="space-y-3">
                 {currentQ.options.map((opt) => {
                   const isSelected = answers[currentQ.id] === opt.value;
@@ -101,20 +96,20 @@ export default function PreferencesQuiz() {
                       onClick={() => handleSelect(currentQ.id, opt.value)}
                       className={`w-full text-left p-5 rounded-xl border-2 transition-all duration-200 group ${
                         isSelected 
-                          ? "border-primary bg-primary/5 shadow-md" 
-                          : "border-slate-100 bg-white hover:border-primary/30 hover:bg-slate-50"
+                          ? "border-cyan-500/50 bg-cyan-500/5 shadow-md shadow-cyan-500/10" 
+                          : "border-white/[0.06] bg-white/[0.02] hover:border-cyan-500/20 hover:bg-white/[0.03]"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`font-semibold ${isSelected ? 'text-primary' : 'text-slate-700'}`}>
+                        <span className={`font-semibold ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
                           {opt.label}
                         </span>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-primary' : 'border-slate-300'}`}>
-                          {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-cyan-400' : 'border-slate-600'}`}>
+                          {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />}
                         </div>
                       </div>
                       {opt.description && (
-                        <p className={`text-sm mt-1 ${isSelected ? 'text-primary/70' : 'text-slate-500'}`}>{opt.description}</p>
+                        <p className={`text-sm mt-1 ${isSelected ? 'text-cyan-400/70' : 'text-slate-500'}`}>{opt.description}</p>
                       )}
                     </button>
                   );
@@ -126,7 +121,7 @@ export default function PreferencesQuiz() {
 
         {currentStep === questions.length - 1 && Object.keys(answers).length === questions.length && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 text-center">
-            <Button size="lg" onClick={handleSubmit} isLoading={isSubmitting} className="w-full">
+            <Button size="lg" onClick={handleSubmit} isLoading={isSubmitting} className="w-full neon-glow-cyan">
               Complete Calibration
             </Button>
           </motion.div>

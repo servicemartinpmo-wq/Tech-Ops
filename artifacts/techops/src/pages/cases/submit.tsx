@@ -22,28 +22,23 @@ export default function SubmitCase() {
     if (!title.trim()) return;
     createCase(
       { data: { title, description, priority: priority as "low" | "medium" | "high" | "critical" } },
-      {
-        onSuccess: (data) => {
-          setLocation(`/cases/${data.id}`);
-        },
-      }
+      { onSuccess: (data) => { setLocation(`/cases/${data.id}`); } }
     );
   };
 
   return (
-    <div className="max-w-3xl mx-auto animate-in fade-in duration-500">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-bold text-slate-900">Submit New Issue</h1>
+    <div className="max-w-3xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <h1 className="text-3xl font-display font-bold text-white text-glow">Submit New Issue</h1>
         <p className="text-slate-500 mt-1">Describe the issue and Apphia will begin diagnostic analysis.</p>
-      </div>
+      </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <Card className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="title">Issue Title</Label>
+              <Label className="text-slate-400">Issue Title</Label>
               <Input
-                id="title"
                 placeholder="e.g. Database connection timeout in EU-West cluster"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -52,24 +47,21 @@ export default function SubmitCase() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label className="text-slate-400">Description</Label>
               <Textarea
-                id="description"
                 placeholder="Provide details about the issue: when it started, affected services, error messages, steps to reproduce..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={6}
-                className="resize-none"
+                className="resize-none bg-showroom-panel border-showroom-border text-slate-200 placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-cyan-500/10"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Priority</Label>
+                <Label className="text-slate-400">Priority</Label>
                 <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Low</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
@@ -80,11 +72,9 @@ export default function SubmitCase() {
               </div>
 
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label className="text-slate-400">Category</Label>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="infrastructure">Infrastructure</SelectItem>
                     <SelectItem value="database">Database</SelectItem>
@@ -97,11 +87,9 @@ export default function SubmitCase() {
               </div>
 
               <div className="space-y-2">
-                <Label>Environment</Label>
+                <Label className="text-slate-400">Environment</Label>
                 <Select value={environment} onValueChange={setEnvironment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select environment" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select environment" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="production">Production</SelectItem>
                     <SelectItem value="staging">Staging</SelectItem>
@@ -111,10 +99,10 @@ export default function SubmitCase() {
               </div>
             </div>
 
-            <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer">
-              <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <div className="border-2 border-dashed border-white/[0.06] rounded-xl p-8 text-center hover:border-cyan-500/20 transition-colors cursor-pointer">
+              <Upload className="w-8 h-8 text-slate-600 mx-auto mb-2" />
               <p className="text-sm text-slate-500 font-medium">Drop log files, screenshots, or environment snapshots here</p>
-              <p className="text-xs text-slate-400 mt-1">Supports .log, .txt, .png, .jpg, .json up to 10MB</p>
+              <p className="text-xs text-slate-600 mt-1">Supports .log, .txt, .png, .jpg, .json up to 10MB</p>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">

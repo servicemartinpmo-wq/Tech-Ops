@@ -51,48 +51,32 @@ export default function BatchDiagnostics() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Batch Diagnostics</h1>
-          <p className="text-slate-500 mt-1">Execute parallel diagnostic pipelines across multiple cases with tier-based concurrency.</p>
-        </div>
-      </div>
+    <div className="space-y-6 max-w-6xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="text-3xl font-display font-bold text-white text-glow">Batch Diagnostics</h1>
+        <p className="text-slate-500 mt-1">Execute parallel diagnostic pipelines across multiple cases with tier-based concurrency.</p>
+      </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-5 bg-gradient-to-br from-blue-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-              <Layers className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{batches.length}</p>
-              <p className="text-sm text-slate-500">Total Batches</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5 bg-gradient-to-br from-green-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{batches.filter(b => b.status === "completed").length}</p>
-              <p className="text-sm text-slate-500">Completed</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-5 bg-gradient-to-br from-amber-50 to-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-              <Play className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-900">{batches.filter(b => b.status === "running").length}</p>
-              <p className="text-sm text-slate-500">Running</p>
-            </div>
-          </div>
-        </Card>
+        {[
+          { label: "Total Batches", value: batches.length, icon: Layers, color: "text-cyan-400", glow: "rgba(0,240,255,0.15)" },
+          { label: "Completed", value: batches.filter(b => b.status === "completed").length, icon: BarChart3, color: "text-emerald-400", glow: "rgba(0,255,136,0.15)" },
+          { label: "Running", value: batches.filter(b => b.status === "running").length, icon: Play, color: "text-amber-400", glow: "rgba(255,184,0,0.15)" },
+        ].map((stat, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+            <Card className="p-5 hud-element">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/[0.03] flex items-center justify-center border border-white/[0.06]" style={{ boxShadow: `0 0 15px ${stat.glow}` }}>
+                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-white font-display">{stat.value}</p>
+                  <p className="text-sm text-slate-500">{stat.label}</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
       <Card className="p-0 overflow-hidden">
@@ -100,46 +84,46 @@ export default function BatchDiagnostics() {
           <div className="p-12 text-center text-slate-500">Loading batch history...</div>
         ) : !batches.length ? (
           <div className="p-16 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Layers className="w-8 h-8 text-slate-400" />
+            <div className="w-16 h-16 bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4 border border-white/[0.06]">
+              <Layers className="w-8 h-8 text-slate-600" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900">No batch jobs yet</h3>
+            <h3 className="text-lg font-bold text-white">No batch jobs yet</h3>
             <p className="text-slate-500 mt-1">Start a batch diagnostic from the Cases page to see results here.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-white/[0.03]">
             <AnimatePresence>
               {batches.map((batch) => (
                 <motion.div
                   key={batch.id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="p-5 hover:bg-slate-50/80 transition-colors"
+                  className="p-5 hover:bg-white/[0.02] transition-colors"
                 >
                   <div className="flex justify-between items-center">
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-slate-400">BATCH-{batch.id.toString().padStart(4, "0")}</span>
-                        <h3 className="font-bold text-slate-900">{batch.name}</h3>
+                        <span className="text-xs font-mono text-slate-600">BATCH-{batch.id.toString().padStart(4, "0")}</span>
+                        <h3 className="font-bold text-white">{batch.name}</h3>
                         <Badge variant={getStatusVariant(batch.status)}>{batch.status}</Badge>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-slate-500">
                         <span>{batch.totalCases} cases</span>
                         <span>{batch.completedCases} completed</span>
-                        {batch.failedCases > 0 && <span className="text-red-500">{batch.failedCases} failed</span>}
+                        {batch.failedCases > 0 && <span className="text-red-400">{batch.failedCases} failed</span>}
                         <span>Concurrency: {batch.concurrencyLimit}</span>
                       </div>
                       {batch.totalCases > 0 && (
-                        <div className="w-64 h-2 bg-slate-100 rounded-full overflow-hidden mt-1">
+                        <div className="w-64 h-1.5 bg-white/[0.04] rounded-full overflow-hidden mt-1">
                           <div
-                            className="h-full bg-primary rounded-full transition-all duration-500"
+                            className="h-full bg-cyan-500 rounded-full transition-all duration-500"
                             style={{ width: `${((batch.completedCases + batch.failedCases) / batch.totalCases) * 100}%` }}
                           />
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-xs text-slate-400">{format(new Date(batch.createdAt), "MMM d, yyyy HH:mm")}</p>
+                      <p className="text-xs text-slate-600">{format(new Date(batch.createdAt), "MMM d, yyyy HH:mm")}</p>
                       {batch.status === "running" && (
                         <Button variant="outline" size="sm" onClick={() => cancelBatch(batch.id)}>
                           <XCircle className="w-4 h-4 mr-1" />
