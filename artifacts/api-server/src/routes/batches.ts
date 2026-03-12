@@ -1,11 +1,90 @@
 import { Router, type IRouter, type Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { db, batchesTable, batchCasesTable, casesTable } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
 import { getTierLimits } from "../middleware/tierGating";
 
 const router: IRouter = Router();
+
+class Semaphore {
+  private queue: (() => void)[] = [];
+  private active = 0;
+  constructor(private max: number) {}
+  async acquire(): Promise<void> {
+    if (this.active < this.max) {
+      this.active++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.queue.push(() => { this.active++; resolve(); });
+    });
+  }
+  release(): void {
+    this.active--;
+    const next = this.queue.shift();
+    if (next) next();
+  }
+  getActive(): number { return this.active; }
+}
+
+const userSemaphores = new Map<string, Semaphore>();
+const globalSemaphore = new Semaphore(20);
+
+function getUserSemaphore(userId: string, limit: number): Semaphore {
+  let sem = userSemaphores.get(userId);
+  if (!sem) {
+    sem = new Semaphore(limit);
+    userSemaphores.set(userId, sem);
+  }
+  return sem;
+}
+
+const OPENAI_TIMEOUT_MS = 120000;
+const RETRY_DELAY_MS = 2000;
+
+function isTransientError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("429") || msg.includes("rate limit")) return true;
+    if (msg.includes("timeout") || msg.includes("timed out")) return true;
+    if (msg.includes("econnreset") || msg.includes("econnrefused")) return true;
+    if (msg.includes("500") || msg.includes("502") || msg.includes("503") || msg.includes("504")) return true;
+    if (msg.includes("network") || msg.includes("fetch failed")) return true;
+  }
+  return false;
+}
+
+function isSystemError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes("case not found")) return false;
+  }
+  return true;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("OpenAI request timed out")), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
+
+async function countUserCasesForQuota(userId: string): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(casesTable)
+    .where(
+      and(
+        eq(casesTable.userId, userId),
+        inArray(casesTable.status, ["resolved", "in_progress"])
+      )
+    );
+  return Number(result[0]?.count || 0);
+}
 
 router.get("/batches", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
@@ -43,6 +122,70 @@ router.post("/batches", async (req, res: Response): Promise<void> => {
 
   if (!limits.features.includes("batch_execution") && !limits.features.includes("all_features")) {
     res.status(403).json({ error: "Batch execution requires Professional tier or higher" });
+    return;
+  }
+
+  const ownedCases = await db
+    .select({ id: casesTable.id })
+    .from(casesTable)
+    .where(
+      and(
+        eq(casesTable.userId, authReq.user.id),
+        inArray(casesTable.id, caseIds)
+      )
+    );
+  const ownedIds = new Set(ownedCases.map((c) => c.id));
+  const invalidIds = caseIds.filter((id) => !ownedIds.has(id));
+  if (invalidIds.length > 0) {
+    res.status(403).json({
+      error: "Invalid case IDs",
+      message: `The following case IDs do not belong to you or do not exist: ${invalidIds.join(", ")}`,
+    });
+    return;
+  }
+
+  const quotaCount = await countUserCasesForQuota(authReq.user.id);
+  const alreadyCounted = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(casesTable)
+    .where(
+      and(
+        eq(casesTable.userId, authReq.user.id),
+        inArray(casesTable.id, caseIds),
+        inArray(casesTable.status, ["resolved", "in_progress"])
+      )
+    );
+  const newCasesCount = caseIds.length - Number(alreadyCounted[0]?.count || 0);
+  if (quotaCount + newCasesCount > limits.maxCases) {
+    res.status(403).json({
+      error: "Case quota exceeded",
+      message: `This batch would bring your total to ${quotaCount + newCasesCount} cases. Your tier allows ${limits.maxCases}. Only resolved and in-progress cases count toward your quota.`,
+      currentCount: quotaCount,
+      limit: limits.maxCases,
+    });
+    return;
+  }
+
+  const runningBatchCases = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(batchCasesTable)
+    .innerJoin(batchesTable, eq(batchCasesTable.batchId, batchesTable.id))
+    .where(
+      and(
+        eq(batchesTable.userId, authReq.user.id),
+        eq(batchesTable.status, "running"),
+        inArray(batchCasesTable.status, ["pending", "running"])
+      )
+    );
+
+  const inFlightCount = Number(runningBatchCases[0]?.count || 0);
+  if (inFlightCount >= limits.maxBatchConcurrency) {
+    res.status(429).json({
+      error: "Concurrency limit reached",
+      message: `You have ${inFlightCount} cases in flight. Your tier allows ${limits.maxBatchConcurrency} concurrent cases. Wait for current cases to complete before submitting a new batch.`,
+      inFlightCount,
+      limit: limits.maxBatchConcurrency,
+    });
     return;
   }
 
@@ -98,6 +241,55 @@ router.get("/batches/:id", async (req, res: Response): Promise<void> => {
   res.json({ ...batch, cases });
 });
 
+router.get("/batches/:id/progress", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  const [batch] = await db
+    .select()
+    .from(batchesTable)
+    .where(and(eq(batchesTable.id, id), eq(batchesTable.userId, authReq.user.id)));
+
+  if (!batch) {
+    res.status(404).json({ error: "Batch not found" });
+    return;
+  }
+
+  const cases = await db
+    .select()
+    .from(batchCasesTable)
+    .where(eq(batchCasesTable.batchId, id));
+
+  const completedCases = cases.filter((c) => c.status === "completed").length;
+  const failedCases = cases.filter((c) => c.status === "failed").length;
+  const systemErrorCases = cases.filter((c) => c.status === "system_error").length;
+
+  const progress = {
+    batchId: batch.id,
+    status: batch.status,
+    totalCases: batch.totalCases,
+    completedCases,
+    failedCases,
+    systemErrorCases,
+    cases: cases.map((c) => ({
+      caseId: c.caseId,
+      status: c.status,
+      errorType: c.errorType,
+      errorMessage: c.errorMessage,
+      startedAt: c.startedAt,
+      completedAt: c.completedAt,
+    })),
+  };
+
+  res.json(progress);
+});
+
 router.post("/batches/:id/cancel", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
@@ -110,7 +302,7 @@ router.post("/batches/:id/cancel", async (req, res: Response): Promise<void> => 
 
   const [updated] = await db
     .update(batchesTable)
-    .set({ status: "cancelled" })
+    .set({ status: "cancelled", completedAt: new Date() })
     .where(and(eq(batchesTable.id, id), eq(batchesTable.userId, authReq.user.id)))
     .returning();
 
@@ -119,85 +311,180 @@ router.post("/batches/:id/cancel", async (req, res: Response): Promise<void> => 
     return;
   }
 
+  await db.update(batchCasesTable)
+    .set({ status: "cancelled", completedAt: new Date() })
+    .where(
+      and(
+        eq(batchCasesTable.batchId, id),
+        eq(batchCasesTable.status, "pending")
+      )
+    );
+
   res.json(updated);
 });
 
-async function executeBatchAsync(batchId: number, caseIds: number[], userId: string, concurrencyLimit: number) {
-  const chunks: number[][] = [];
-  for (let i = 0; i < caseIds.length; i += concurrencyLimit) {
-    chunks.push(caseIds.slice(i, i + concurrencyLimit));
+async function runCaseDiagnostic(
+  caseId: number,
+  batchId: number,
+  userId: string
+): Promise<Record<string, unknown>> {
+  await db.update(batchCasesTable).set({ status: "running", startedAt: new Date() })
+    .where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, caseId)));
+
+  const [c] = await db.select().from(casesTable)
+    .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, userId)));
+
+  if (!c) throw new Error("Case not found");
+
+  await db.update(casesTable).set({ status: "in_progress" }).where(eq(casesTable.id, caseId));
+
+  const response = await withTimeout(
+    openai.chat.completions.create({
+      model: "gpt-4o",
+      max_completion_tokens: 4096,
+      messages: [
+        { role: "system", content: "You are Apphia. Provide a diagnostic summary as JSON: {rootCause: string, confidenceScore: number, resolution: string, signals: string[]}" },
+        { role: "user", content: `Diagnose: ${c.title} - ${c.description || "No details"}` },
+      ],
+    }),
+    OPENAI_TIMEOUT_MS
+  );
+
+  let result: Record<string, unknown> = {};
+  try {
+    const text = response.choices[0]?.message?.content || "{}";
+    const match = text.match(/\{[\s\S]*\}/);
+    result = match ? JSON.parse(match[0]) : {};
+  } catch {
+    result = { rootCause: "Quick analysis complete", confidenceScore: 70, resolution: "Manual review recommended" };
   }
+
+  await db.update(casesTable).set({
+    status: "resolved",
+    rootCause: result.rootCause as string,
+    resolution: result.resolution as string,
+    confidenceScore: result.confidenceScore as number,
+    resolvedAt: new Date(),
+  }).where(eq(casesTable.id, caseId));
+
+  await db.update(batchCasesTable).set({ status: "completed", result, completedAt: new Date() })
+    .where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, caseId)));
+
+  return result;
+}
+
+async function markCaseFailed(
+  caseId: number,
+  batchId: number,
+  userId: string,
+  previousStatus: string,
+  error: unknown,
+  errorType: "system_error" | "failed"
+): Promise<void> {
+  if (errorType === "system_error") {
+    await db.update(casesTable).set({ status: previousStatus })
+      .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, userId)));
+  }
+
+  const errMsg = error instanceof Error ? error.message : "Unknown error";
+  await db.update(batchCasesTable).set({
+    status: errorType,
+    errorType,
+    errorMessage: errMsg,
+    completedAt: new Date(),
+  }).where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, caseId)));
+}
+
+async function executeBatchAsync(batchId: number, caseIds: number[], userId: string, concurrencyLimit: number) {
+  const userSem = getUserSemaphore(userId, concurrencyLimit);
 
   let completed = 0;
   let failed = 0;
+  let systemErrors = 0;
 
-  for (const chunk of chunks) {
-    const [currentBatch] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId));
-    if (currentBatch?.status === "cancelled") break;
+  type CaseResult =
+    | { status: "completed"; result: Record<string, unknown> }
+    | { status: "failed" }
+    | { status: "system_error" }
+    | { status: "skipped" };
 
-    const results = await Promise.allSettled(
-      chunk.map(async (caseId) => {
-        await db.update(batchCasesTable).set({ status: "running", startedAt: new Date() })
-          .where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, caseId)));
-
-        const [c] = await db.select().from(casesTable)
-          .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, userId)));
-
-        if (!c) throw new Error("Case not found");
-
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          max_completion_tokens: 4096,
-          messages: [
-            { role: "system", content: "You are Apphia. Provide a diagnostic summary as JSON: {rootCause: string, confidenceScore: number, resolution: string, signals: string[]}" },
-            { role: "user", content: `Diagnose: ${c.title} - ${c.description || "No details"}` },
-          ],
-        });
-
-        let result: Record<string, unknown> = {};
-        try {
-          const text = response.choices[0]?.message?.content || "{}";
-          const match = text.match(/\{[\s\S]*\}/);
-          result = match ? JSON.parse(match[0]) : {};
-        } catch {
-          result = { rootCause: "Quick analysis complete", confidenceScore: 70, resolution: "Manual review recommended" };
-        }
-
-        await db.update(casesTable).set({
-          status: "resolved",
-          rootCause: result.rootCause as string,
-          resolution: result.resolution as string,
-          confidenceScore: result.confidenceScore as number,
-          resolvedAt: new Date(),
-        }).where(eq(casesTable.id, caseId));
-
-        await db.update(batchCasesTable).set({ status: "completed", result, completedAt: new Date() })
-          .where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, caseId)));
-
-        return result;
-      })
-    );
-
-    for (const r of results) {
-      if (r.status === "fulfilled") completed++;
-      else {
-        failed++;
-        const failedCaseId = chunk[results.indexOf(r)];
-        await db.update(batchCasesTable).set({ status: "failed", completedAt: new Date() })
-          .where(and(eq(batchCasesTable.batchId, batchId), eq(batchCasesTable.caseId, failedCaseId)));
-      }
-    }
-
-    await db.update(batchesTable).set({ completedCases: completed, failedCases: failed })
-      .where(eq(batchesTable.id, batchId));
+  const caseStatuses = new Map<number, string>();
+  for (const caseId of caseIds) {
+    const [c] = await db.select().from(casesTable)
+      .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, userId)));
+    caseStatuses.set(caseId, c?.status || "open");
   }
 
+  const results = await Promise.allSettled(
+    caseIds.map(async (caseId): Promise<CaseResult> => {
+      const [currentBatch] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId));
+      if (currentBatch?.status === "cancelled") return { status: "skipped" };
+
+      const previousStatus = caseStatuses.get(caseId) || "open";
+
+      await userSem.acquire();
+      try {
+        await globalSemaphore.acquire();
+        try {
+          const [latestBatch] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId));
+          if (latestBatch?.status === "cancelled") return { status: "skipped" };
+
+          try {
+            const result = await runCaseDiagnostic(caseId, batchId, userId);
+            return { status: "completed", result };
+          } catch (firstError) {
+            if (isTransientError(firstError)) {
+              await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+              try {
+                const result = await runCaseDiagnostic(caseId, batchId, userId);
+                return { status: "completed", result };
+              } catch (retryError) {
+                const retryErrType = isSystemError(retryError) ? "system_error" as const : "failed" as const;
+                await markCaseFailed(caseId, batchId, userId, previousStatus, retryError, retryErrType);
+                return { status: retryErrType };
+              }
+            }
+
+            if (isSystemError(firstError)) {
+              await markCaseFailed(caseId, batchId, userId, previousStatus, firstError, "system_error");
+              return { status: "system_error" };
+            }
+
+            await markCaseFailed(caseId, batchId, userId, previousStatus, firstError, "failed");
+            return { status: "failed" };
+          }
+        } finally {
+          globalSemaphore.release();
+        }
+      } finally {
+        userSem.release();
+      }
+    })
+  );
+
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      if (r.value.status === "completed") completed++;
+      else if (r.value.status === "failed") failed++;
+      else if (r.value.status === "system_error") systemErrors++;
+    } else if (r.status === "rejected") {
+      failed++;
+    }
+  }
+
+  const [currentBatch] = await db.select().from(batchesTable).where(eq(batchesTable.id, batchId));
+  if (currentBatch?.status === "cancelled") return;
+
+  let finalStatus = "completed";
+  if (completed === 0 && (failed + systemErrors) > 0) finalStatus = "failed";
+
   await db.update(batchesTable).set({
-    status: failed === caseIds.length ? "failed" : "completed",
+    status: finalStatus,
     completedCases: completed,
     failedCases: failed,
+    systemErrorCases: systemErrors,
     completedAt: new Date(),
-  }).where(eq(batchesTable.id, batchId));
+  }).where(and(eq(batchesTable.id, batchId), eq(batchesTable.status, "running")));
 }
 
 export default router;

@@ -76,12 +76,13 @@ export default function CaseDetail() {
                       initial={{ opacity: 0, x: -5 }}
                       animate={{ opacity: 1, x: 0 }}
                       key={i} 
-                      className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'complete' ? 'text-emerald-400' : ''}`}
+                      className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'system_error' ? 'text-amber-400' : log.type === 'complete' ? 'text-emerald-400' : ''}`}
                     >
                       <span className="text-slate-700 select-none">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
                       <div className="flex-1 break-words">
                         {log.type === 'signal' && <span className="text-cyan-400 mr-2">EXTRACT:</span>}
                         {log.type === 'udo_path' && <span className="text-purple-400 mr-2">UDO TRAVERSAL:</span>}
+                        {log.type === 'system_error' && <span className="text-amber-400 mr-2">⚠ PLATFORM ERROR:</span>}
                         {log.message}
                         {log.data && (
                           <pre className="mt-1 p-2 bg-black/40 rounded text-xs text-slate-500 overflow-x-auto border border-white/[0.03]">
@@ -97,6 +98,31 @@ export default function CaseDetail() {
             </div>
           </Card>
 
+          {logs.some((l) => l.type === "system_error") && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="p-5 bg-amber-50 border-amber-200">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-display font-bold text-amber-800">Platform Error</h3>
+                    <p className="text-sm text-amber-700 mt-1">
+                      This diagnostic failed due to a platform-side error, not your input. The case has been reset to its previous state and does not count against your quota. You can re-run the diagnostic at no additional cost.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 border-amber-300 text-amber-700 hover:bg-amber-100"
+                      onClick={runDiagnostic}
+                      disabled={isRunning}
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Retry Diagnostic
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
           {(diagnosticCase.rootCause || diagnosticCase.resolution) && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="p-6 neon-border">

@@ -1,11 +1,24 @@
 import { Router, type IRouter, type Response } from "express";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { db, casesTable, diagnosticAttemptsTable } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
 import type { Case } from "@workspace/db";
 import { getTierLimits } from "../middleware/tierGating";
+
+async function countUserCasesForQuota(userId: string): Promise<number> {
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(casesTable)
+    .where(
+      and(
+        eq(casesTable.userId, userId),
+        inArray(casesTable.status, ["resolved", "in_progress"])
+      )
+    );
+  return Number(result[0]?.count || 0);
+}
 
 const router: IRouter = Router();
 
@@ -136,6 +149,24 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
   if (!caseItem) {
     res.status(404).json({ error: "Case not found" });
     return;
+  }
+
+  const { storage: storageModule } = await import("../storage");
+  const user = await storageModule.getUser(authReq.user.id);
+  const tier = user?.subscriptionTier || "free";
+  const limits = getTierLimits(tier);
+
+  if (caseItem.status !== "resolved" && caseItem.status !== "in_progress") {
+    const quotaCount = await countUserCasesForQuota(authReq.user.id);
+    if (quotaCount >= limits.maxCases) {
+      res.status(403).json({
+        error: "Case quota exceeded",
+        message: `You have ${quotaCount} cases counting toward your quota. Your tier allows ${limits.maxCases}. Only resolved and in-progress cases count.`,
+        currentCount: quotaCount,
+        limit: limits.maxCases,
+      });
+      return;
+    }
   }
 
   res.setHeader("Content-Type", "text/event-stream");
@@ -291,7 +322,19 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
     sendEvent({ type: "complete", summary });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Diagnostic pipeline error";
-    sendEvent({ type: "error", message });
+
+    const preDiagnosticStatus = caseItem.status || "open";
+    await db
+      .update(casesTable)
+      .set({ status: preDiagnosticStatus })
+      .where(eq(casesTable.id, id));
+
+    sendEvent({
+      type: "system_error",
+      message,
+      isSystemError: true,
+      userMessage: "This failure was caused by a platform error, not your input. The case has been reset and can be re-submitted at no cost.",
+    });
   }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);

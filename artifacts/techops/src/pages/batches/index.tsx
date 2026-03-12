@@ -1,8 +1,27 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, Button, Badge } from "@/components/ui";
 import { format } from "date-fns";
-import { Layers, Play, XCircle, ChevronRight, BarChart3 } from "lucide-react";
+import { Layers, Play, XCircle, ChevronRight, BarChart3, AlertTriangle, RefreshCw, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+interface BatchCase {
+  caseId: number;
+  status: string;
+  errorType: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+interface BatchProgress {
+  batchId: number;
+  status: string;
+  totalCases: number;
+  completedCases: number;
+  failedCases: number;
+  systemErrorCases: number;
+  cases: BatchCase[];
+}
 
 interface Batch {
   id: number;
@@ -11,6 +30,7 @@ interface Batch {
   totalCases: number;
   completedCases: number;
   failedCases: number;
+  systemErrorCases: number;
   concurrencyLimit: number;
   crossCasePatterns: Record<string, unknown> | null;
   createdAt: string;
@@ -21,6 +41,8 @@ export default function BatchDiagnostics() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
+  const [batchProgress, setBatchProgress] = useState<Record<number, BatchProgress>>({});
+  const pollIntervals = useRef<Record<number, ReturnType<typeof setInterval>>>({});
 
   useEffect(() => {
     fetch("/api/batches")
@@ -32,11 +54,70 @@ export default function BatchDiagnostics() {
       .catch(() => setIsLoading(false));
   }, []);
 
+  const pollBatchProgress = useCallback((batchId: number) => {
+    if (pollIntervals.current[batchId]) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/batches/${batchId}/progress`);
+        if (res.ok) {
+          const progress: BatchProgress = await res.json();
+          setBatchProgress((prev) => ({ ...prev, [batchId]: progress }));
+          setBatches((prev) =>
+            prev.map((b) =>
+              b.id === batchId
+                ? {
+                    ...b,
+                    status: progress.status,
+                    completedCases: progress.completedCases,
+                    failedCases: progress.failedCases,
+                    systemErrorCases: progress.systemErrorCases,
+                  }
+                : b
+            )
+          );
+
+          if (progress.status !== "running") {
+            clearInterval(pollIntervals.current[batchId]);
+            delete pollIntervals.current[batchId];
+          }
+        }
+      } catch {}
+    };
+
+    poll();
+    pollIntervals.current[batchId] = setInterval(poll, 3000);
+  }, []);
+
+  useEffect(() => {
+    batches
+      .filter((b) => b.status === "running")
+      .forEach((b) => pollBatchProgress(b.id));
+
+    return () => {
+      Object.values(pollIntervals.current).forEach(clearInterval);
+      pollIntervals.current = {};
+    };
+  }, [batches.length, pollBatchProgress]);
+
+  useEffect(() => {
+    if (selectedBatch) {
+      const batch = batches.find((b) => b.id === selectedBatch);
+      if (batch) {
+        pollBatchProgress(batch.id);
+      }
+    }
+  }, [selectedBatch, pollBatchProgress, batches]);
+
   const cancelBatch = async (id: number) => {
     const res = await fetch(`/api/batches/${id}/cancel`, { method: "POST" });
     if (res.ok) {
       const updated = await res.json();
-      setBatches((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+      setBatches((prev) => prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)));
+      if (pollIntervals.current[id]) {
+        clearInterval(pollIntervals.current[id]);
+        delete pollIntervals.current[id];
+      }
     }
   };
 
@@ -45,9 +126,104 @@ export default function BatchDiagnostics() {
       case "completed": return "success" as const;
       case "running": return "warning" as const;
       case "failed": return "error" as const;
+      case "system_error": return "error" as const;
       case "cancelled": return "neutral" as const;
       default: return "neutral" as const;
     }
+  };
+
+  const getCaseStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed": return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case "running": return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      case "pending": return <Clock className="w-4 h-4 text-slate-400" />;
+      case "failed": return <XCircle className="w-4 h-4 text-red-500" />;
+      case "system_error": return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      default: return <Clock className="w-4 h-4 text-slate-400" />;
+    }
+  };
+
+  const renderBatchCases = (batchId: number) => {
+    const progress = batchProgress[batchId];
+    if (!progress) return <div className="p-4 text-sm text-slate-500">Loading case details...</div>;
+
+    return (
+      <div className="p-4 space-y-3">
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-slate-500">{progress.completedCases} completed</span>
+          </div>
+          {progress.failedCases > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-slate-500">{progress.failedCases} failed</span>
+            </div>
+          )}
+          {progress.systemErrorCases > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-slate-500">{progress.systemErrorCases} system errors</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-white/[0.1]" />
+            <span className="text-slate-500">
+              {progress.cases.filter((c) => c.status === "pending" || c.status === "running").length} in progress
+            </span>
+          </div>
+        </div>
+
+        {progress.systemErrorCases > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-200">Platform errors detected</p>
+              <p className="text-xs text-amber-500/80 mt-0.5">
+                {progress.systemErrorCases} case(s) failed due to a platform-side error. These cases have been reset and do not count against your quota. You can re-submit them at no cost.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1">
+          {progress.cases.map((c) => (
+            <div
+              key={c.caseId}
+              className={`flex items-center justify-between p-2.5 rounded-lg text-sm ${
+                c.status === "system_error" ? "bg-amber-500/5" : "bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                {getCaseStatusIcon(c.status)}
+                <span className="font-mono text-xs text-slate-600">Case #{c.caseId}</span>
+                <Badge variant={getStatusVariant(c.status)} className="text-xs">
+                  {c.status === "system_error" ? "System Error" : c.status}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3">
+                {c.status === "system_error" && c.errorMessage && (
+                  <span className="text-xs text-amber-500/80 max-w-[200px] truncate" title={c.errorMessage}>
+                    {c.errorMessage}
+                  </span>
+                )}
+                {c.status === "system_error" && (
+                  <div className="flex items-center gap-1 text-xs text-amber-500">
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Re-submittable</span>
+                  </div>
+                )}
+                {c.completedAt && (
+                  <span className="text-xs text-slate-600">
+                    {format(new Date(c.completedAt), "HH:mm:ss")}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -57,11 +233,12 @@ export default function BatchDiagnostics() {
         <p className="text-slate-500 mt-1">Execute parallel diagnostic pipelines across multiple cases with tier-based concurrency.</p>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Total Batches", value: batches.length, icon: Layers, color: "text-cyan-400", glow: "rgba(0,240,255,0.15)" },
           { label: "Completed", value: batches.filter(b => b.status === "completed").length, icon: BarChart3, color: "text-emerald-400", glow: "rgba(0,255,136,0.15)" },
           { label: "Running", value: batches.filter(b => b.status === "running").length, icon: Play, color: "text-amber-400", glow: "rgba(255,184,0,0.15)" },
+          { label: "System Errors", value: batches.reduce((sum, b) => sum + (b.systemErrorCases || 0), 0), icon: AlertTriangle, color: "text-red-400", glow: "rgba(239,68,68,0.15)" },
         ].map((stat, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
             <Card className="p-5 hud-element">
@@ -106,19 +283,41 @@ export default function BatchDiagnostics() {
                         <span className="text-xs font-mono text-slate-600">BATCH-{batch.id.toString().padStart(4, "0")}</span>
                         <h3 className="font-bold text-white">{batch.name}</h3>
                         <Badge variant={getStatusVariant(batch.status)}>{batch.status}</Badge>
+                        {batch.status === "running" && (
+                          <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-slate-500">
                         <span>{batch.totalCases} cases</span>
                         <span>{batch.completedCases} completed</span>
                         {batch.failedCases > 0 && <span className="text-red-400">{batch.failedCases} failed</span>}
+                        {(batch.systemErrorCases || 0) > 0 && (
+                          <span className="text-amber-400 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            {batch.systemErrorCases} system error{batch.systemErrorCases > 1 ? "s" : ""}
+                          </span>
+                        )}
                         <span>Concurrency: {batch.concurrencyLimit}</span>
                       </div>
                       {batch.totalCases > 0 && (
-                        <div className="w-64 h-1.5 bg-white/[0.04] rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-full bg-cyan-500 rounded-full transition-all duration-500"
-                            style={{ width: `${((batch.completedCases + batch.failedCases) / batch.totalCases) * 100}%` }}
-                          />
+                        <div className="flex items-center gap-2">
+                          <div className="w-64 h-1.5 bg-white/[0.04] rounded-full overflow-hidden mt-1 flex">
+                            <div
+                              className="h-full bg-emerald-500 transition-all duration-500"
+                              style={{ width: `${(batch.completedCases / batch.totalCases) * 100}%` }}
+                            />
+                            <div
+                              className="h-full bg-red-500 transition-all duration-500"
+                              style={{ width: `${(batch.failedCases / batch.totalCases) * 100}%` }}
+                            />
+                            <div
+                              className="h-full bg-amber-400 transition-all duration-500"
+                              style={{ width: `${((batch.systemErrorCases || 0) / batch.totalCases) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-600">
+                            {Math.round(((batch.completedCases + batch.failedCases + (batch.systemErrorCases || 0)) / batch.totalCases) * 100)}%
+                          </span>
                         </div>
                       )}
                     </div>
@@ -135,6 +334,18 @@ export default function BatchDiagnostics() {
                       </Button>
                     </div>
                   </div>
+                  <AnimatePresence>
+                    {selectedBatch === batch.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden border-t border-white/[0.04]"
+                      >
+                        {renderBatchCases(batch.id)}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               ))}
             </AnimatePresence>

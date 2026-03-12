@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export interface DiagnosticEvent {
-  type: "progress" | "signal" | "udo_path" | "complete" | "error";
+  type: "progress" | "signal" | "udo_path" | "complete" | "error" | "system_error";
   message?: string;
   data?: Record<string, unknown>;
+  isSystemError?: boolean;
+  userMessage?: string;
 }
 
 export function useSseDiagnostic(caseId: number) {
@@ -45,6 +47,14 @@ export function useSseDiagnostic(caseId: number) {
               if (data.done || data.type === 'complete') {
                 done = true;
                 setLogs((prev) => [...prev, { type: "complete", message: "Diagnostic complete." }]);
+              } else if (data.type === 'system_error') {
+                done = true;
+                setLogs((prev) => [...prev, {
+                  type: "system_error",
+                  message: data.userMessage || data.message || "A platform error occurred.",
+                  isSystemError: true,
+                  userMessage: data.userMessage,
+                }]);
               } else {
                 setLogs((prev) => [...prev, data as DiagnosticEvent]);
               }
