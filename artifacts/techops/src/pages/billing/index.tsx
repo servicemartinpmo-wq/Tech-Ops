@@ -20,7 +20,7 @@ const PLAN_META: Record<string, {
     tagline: "Freelancers & solo operators",
     features: [
       "Unlimited on-demand support tickets",
-      "AI diagnostics & automated low-risk fixes",
+      "Apphia diagnostics & automated low-risk fixes",
       "Preventive monitoring & alerts",
       "Plain-language explanations & reports",
       "Remote guidance via screenshot/log analysis",
@@ -35,7 +35,7 @@ const PLAN_META: Record<string, {
     tagline: "Small business owners & teams",
     features: [
       "Everything in Starter",
-      "Medium-risk AI action approvals",
+      "Medium-risk action approvals",
       "Automatic tier escalation for diagnostics",
       "Priority notifications",
       "Zapier, Google Workspace & Slack integration",
@@ -50,8 +50,8 @@ const PLAN_META: Record<string, {
     tagline: "SMBs with critical systems",
     features: [
       "Everything in Professional",
-      "High-risk AI action approvals",
-      "AI-guided walkthroughs for complex fixes",
+      "High-risk action approvals",
+      "Apphia-guided walkthroughs for complex fixes",
       "Full connector & API management",
       "24/7 predictive monitoring & alerts",
       "Personalized Apphia configuration",
@@ -241,7 +241,7 @@ export default function Billing() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-slate-500">
             {[
-              { icon: Brain, title: "AI-First Support", desc: "Apphia handles the vast majority of issues autonomously — human escalation is the exception, not the rule." },
+              { icon: Brain, title: "Apphia-First Support", desc: "Apphia handles the vast majority of issues autonomously — human escalation is the exception, not the rule." },
               { icon: Zap, title: "Email Support Included", desc: "All plans include email support with 1–24 hr response depending on complexity and tier." },
               { icon: Shield, title: "Predictive Monitoring", desc: "Continuous monitoring reduces incidents before they require escalation, saving time and cost." },
             ].map((item, i) => (

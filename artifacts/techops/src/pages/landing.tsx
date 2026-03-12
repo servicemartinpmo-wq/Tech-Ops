@@ -72,7 +72,7 @@ const pricingPlans = [
     color: "#0ea5e9",
     features: [
       "Unlimited on-demand support tickets",
-      "AI diagnostics & automated low-risk fixes",
+      "Apphia diagnostics & automated low-risk fixes",
       "Preventive monitoring & alerts",
       "Plain-language explanations & reports",
       "Remote guidance via screenshot/log analysis",
@@ -88,7 +88,7 @@ const pricingPlans = [
     popular: true,
     features: [
       "Everything in Starter",
-      "Medium-risk AI action approvals",
+      "Medium-risk action approvals",
       "Automatic tier escalation for diagnostics",
       "Priority notifications",
       "Zapier, Google Workspace & Slack integration",
@@ -103,8 +103,8 @@ const pricingPlans = [
     color: "#059669",
     features: [
       "Everything in Professional",
-      "High-risk AI action approvals",
-      "AI-guided walkthroughs for complex fixes",
+      "High-risk action approvals",
+      "Apphia-guided walkthroughs for complex fixes",
       "Full connector & API management",
       "24/7 predictive monitoring & alerts",
       "Personalized Apphia configuration",
