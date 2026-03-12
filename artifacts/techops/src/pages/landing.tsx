@@ -101,7 +101,7 @@ function ShowroomHero({ onLogin }: { onLogin: () => void }) {
       <nav className="relative z-20 px-8 py-6 flex justify-between items-center max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
           <img src={`${BASE}images/logo-pmo-ops.png`} alt="PMO-Ops" className="w-11 h-11 object-contain rounded-lg" />
-          <span className="font-display font-bold text-xl text-white tracking-tight">PMO-Ops</span>
+          <span className="font-display font-bold text-xl text-white tracking-tight">Tech-Ops <span className="text-sm font-medium text-slate-400">by Martin PMO</span></span>
         </div>
         <div className="flex items-center gap-6">
           <a href="#features" className="text-sm font-medium text-slate-300 hover:text-white transition-colors hidden md:block">Features</a>
@@ -394,8 +394,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <img src={`${BASE}images/logo-pmo-ops.png`} alt="PMO-Ops" className="w-7 h-7 object-contain rounded" />
-            <span className="font-display font-bold text-sm text-white">PMO-Ops</span>
-            <span className="text-slate-600 text-xs ml-2">by Martin PMO</span>
+            <span className="font-display font-bold text-sm text-white">Tech-Ops by Martin PMO</span>
           </div>
           <p className="text-xs text-slate-600">© 2026 Martin PMO. All rights reserved.</p>
         </div>

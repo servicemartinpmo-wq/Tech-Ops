@@ -76,8 +76,8 @@ export function Layout({ children }: { children: ReactNode }) {
             alt="PMO-Ops Logo" 
             className="w-10 h-10 object-contain rounded-lg"
           />
-          <h1 className="font-display font-bold text-lg tracking-tight text-white">
-            PMO-Ops
+          <h1 className="font-display font-bold text-base tracking-tight text-white leading-tight">
+            Tech-Ops<br /><span className="text-xs font-medium text-slate-500 font-sans tracking-normal">by Martin PMO</span>
           </h1>
         </div>
 
