@@ -1,0 +1,44 @@
+Martin PMO / Tech-Ops Pricing – Rebalanced
+7-Day Free Trial
+No credit card required
+Full access to Starter plan features
+Let users experience AI-driven diagnostics, preventive monitoring, and plain-language guidance
+Proposed Plans
+Plan Name	Monthly Cost	Ideal For	Features	Human Support
+Starter	$15	Freelancers / solo operators	- Unlimited on-demand AI support tickets	
+AI diagnostics & automated low-risk fixes
+Preventive monitoring & alerts
+Plain-language explanations & reports
+Remote guidance via screenshot/log analysis | Escalation to human support via email, 1–24 hr response |
+| Professional | $49 | Small business owners / teams | All Starter features +
+Medium-risk AI actions
+Automatic escalation to higher AI tier diagnostics
+Priority notifications
+Integration with common business tools (Zapier, Google Workspace, Slack) | Human support via email, 1–24 hr response |
+| Business | $99 | SMBs with critical systems | All Professional features +
+High-risk AI action approvals
+AI-guided walkthroughs for complex fixes
+Full integration & connector management (API, databases, apps)
+24/7 predictive monitoring & preventive alerts
+Personalized AI assistant configuration | Human support via email, 1–24 hr response |
+| Enterprise Add-On / Licensing | Custom | Large organizations | - Private Apphia Engine license
+Custom workflows, connectors, and frameworks
+Dedicated account integration & consulting | SLA-based email support, 24 hr or faster optional |
+Rationale
+Starter ($15)
+Maintains a low barrier of entry for freelancers.
+Introduces users to the AI without overpaying for features they don’t need.
+Professional ($49)
+Balances affordable SMB access with perceived value.
+Signals that this is premium, not entry-level AI, yet still accessible.
+Business ($99)
+Reflects the full intelligence and capabilities of Tech-Ops: predictive monitoring, AI-guided walkthroughs, and enterprise-level integrations.
+Still affordable compared to hiring a human IT team or consultant.
+Enterprise / Add-On
+Reserved for companies wanting Apphia Engine licensing or custom solutions.
+Protects your IP and positions your AI as high-value, hard to replicate.
+Key Service Rules
+No human-assisted escalation by default — AI handles the vast majority of issues.
+Email support only; response 1–24 hours depending on complexity.
+Predictive monitoring reduces incidents requiring escalation.
+Voice companion and plain-language communication ensure non-technical users feel supported.

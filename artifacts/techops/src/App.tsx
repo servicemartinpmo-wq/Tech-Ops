@@ -28,6 +28,7 @@ import StackIntelligence from "@/pages/stack-intelligence";
 import PMOOps from "@/pages/pmo-ops";
 import RemoteAssistance from "@/pages/remote-assistance";
 import KnowledgeBase from "@/pages/kb";
+import SecureVault from "@/pages/secure-vault";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -82,6 +83,7 @@ function Router() {
       <Route path="/stack-intelligence"><ProtectedRoute component={StackIntelligence} /></Route>
       <Route path="/pmo-ops"><ProtectedRoute component={PMOOps} /></Route>
       <Route path="/remote-assistance"><ProtectedRoute component={RemoteAssistance} /></Route>
+      <Route path="/secure-vault"><ProtectedRoute component={SecureVault} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

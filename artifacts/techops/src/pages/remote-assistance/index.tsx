@@ -3,8 +3,11 @@ import { Card, Badge, Button } from "@/components/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Monitor, Shield, Eye, Edit, Terminal, Wifi, Lock, Unlock,
-  Play, Square, Clock, CheckCircle2, AlertTriangle, Activity
+  Play, Square, Clock, CheckCircle2, AlertTriangle, Activity,
+  Vault, KeyRound, EyeOff, RefreshCw, AlertCircle, X
 } from "lucide-react";
+import { useApiBase } from "@/hooks/use-api-base";
+import { Link } from "wouter";
 
 const permissionPresets = [
   { id: "readonly", label: "Read-only Observer", desc: "View screen only — no interaction allowed", icon: Eye, level: "low" },
@@ -31,13 +34,165 @@ const sessionLog = [
   { time: "14:34:30", action: "Service nginx restarted", user: "Agent", type: "write" },
 ];
 
+function SaveToVaultModal({
+  sessionLog,
+  onClose,
+  apiBase,
+}: {
+  sessionLog: Array<{ time: string; action: string; user: string; type: string }>;
+  onClose: () => void;
+  apiBase: string;
+}) {
+  const [title, setTitle] = useState(`Screen Session — ${new Date().toLocaleDateString()}`);
+  const [password, setPassword] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    if (!password) { setError("Password is required"); return; }
+    if (password !== confirmPw) { setError("Passwords do not match"); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${apiBase}/api/vault/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "screen_session",
+          title,
+          description: `Screen sharing session with ${sessionLog.length} logged actions`,
+          content: { sessionLog, savedAt: new Date().toISOString() },
+          password,
+        }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(onClose, 2000);
+      } else {
+        const err = await res.json();
+        setError(err.error || "Failed to save to vault");
+      }
+    } catch {
+      setError("Connection error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-md"
+      >
+        <Card className="p-6 border-amber-500/20">
+          {saved ? (
+            <div className="py-6 text-center">
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3 shadow-[0_0_20px_rgba(52,211,153,0.4)]" />
+              <h3 className="font-display font-bold text-white text-lg">Session Secured</h3>
+              <p className="text-slate-500 text-sm mt-1">Your session log has been encrypted and stored in the vault.</p>
+              <Link href="/secure-vault" className="inline-flex items-center gap-2 mt-4 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
+                <Lock className="w-3.5 h-3.5" />
+                View in Secure Vault
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-white">Save Session to Vault</h3>
+                  <p className="text-xs text-slate-500">{sessionLog.length} actions will be encrypted</p>
+                </div>
+                <button onClick={onClose} className="ml-auto text-slate-600 hover:text-slate-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block mb-1.5">Session Title</label>
+                  <input
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/40 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block mb-1.5">Vault Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPw ? "text" : "password"}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Min. 8 characters"
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm pr-9 focus:outline-none focus:border-amber-500/40 transition-all"
+                    />
+                    <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600">
+                      {showPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider block mb-1.5">Confirm Password</label>
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={confirmPw}
+                    onChange={e => setConfirmPw(e.target.value)}
+                    placeholder="Repeat password"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500/40 transition-all"
+                  />
+                </div>
+
+                {error && (
+                  <p className="text-red-400 text-xs flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="w-full gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold"
+                >
+                  {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                  {loading ? "Encrypting..." : "Encrypt & Store in Vault"}
+                </Button>
+              </div>
+            </>
+          )}
+        </Card>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function RemoteAssistance() {
+  const apiBase = useApiBase();
   const [isSharing, setIsSharing] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState("readonly");
   const [permissions, setPermissions] = useState<Record<string, boolean>>({
     fs_read: true, fs_write: false, shell: false, service: false, network: false, env: false,
   });
   const [sessionActive, setSessionActive] = useState(false);
+  const [showSaveToVault, setShowSaveToVault] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -82,12 +237,32 @@ export default function RemoteAssistance() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-display font-bold text-white text-glow flex items-center gap-3">
-          <Monitor className="w-8 h-8 text-cyan-400" />
-          Remote Assistance
-        </h1>
-        <p className="text-slate-500 mt-1">Secure screen sharing with granular permission controls.</p>
+      <AnimatePresence>
+        {showSaveToVault && (
+          <SaveToVaultModal
+            sessionLog={sessionLog}
+            apiBase={apiBase}
+            onClose={() => setShowSaveToVault(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-white text-glow flex items-center gap-3">
+            <Monitor className="w-8 h-8 text-cyan-400" />
+            Remote Assistance
+          </h1>
+          <p className="text-slate-500 mt-1">Secure screen sharing with granular permission controls.</p>
+        </div>
+        <Button
+          onClick={() => setShowSaveToVault(true)}
+          variant="outline"
+          className="gap-2 border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+        >
+          <Lock className="w-4 h-4" />
+          Save Session to Vault
+        </Button>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -11,6 +11,7 @@ import openaiRouter from "./openai";
 import batchesRouter from "./batches";
 import alertsRouter from "./alerts";
 import kbRouter from "./kb";
+import vaultRouter from "./vault";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(openaiRouter);
 router.use(batchesRouter);
 router.use(alertsRouter);
 router.use(kbRouter);
+router.use(vaultRouter);
 
 export default router;
