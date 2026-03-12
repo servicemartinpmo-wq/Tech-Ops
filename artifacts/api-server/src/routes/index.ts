@@ -10,6 +10,7 @@ import preferencesRouter from "./preferences";
 import openaiRouter from "./openai";
 import batchesRouter from "./batches";
 import alertsRouter from "./alerts";
+import kbRouter from "./kb";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(preferencesRouter);
 router.use(openaiRouter);
 router.use(batchesRouter);
 router.use(alertsRouter);
+router.use(kbRouter);
 
 export default router;

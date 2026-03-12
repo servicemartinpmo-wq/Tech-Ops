@@ -1,10 +1,11 @@
 import { useGetDashboardStats, useGetRecentActivity } from "@workspace/api-client-react";
 import { Card } from "@/components/ui";
-import { Activity, AlertCircle, CheckCircle2, Clock, Server, Zap, Shield, Brain, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Activity, AlertCircle, CheckCircle2, Clock, Server, Zap, Shield, Brain, TrendingUp, ArrowUpRight, BookOpen, GitBranch, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
+import { useApiBase } from "@/hooks/use-api-base";
 
 function AnimatedCounter({ value, suffix = "" }: { value: number | string; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -100,9 +101,25 @@ function RelationshipMap() {
   );
 }
 
+function useKBStats(apiBase: string) {
+  const [kbStats, setKbStats] = useState<{
+    totalKBEntries: number; avgSuccessRate: number; selfHealableCount: number; domains: number;
+    monitorStats: { activeDownConnectors: number; autoCreatedCasesCount: number; monitoredConnectors: number };
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/kb/stats`, { credentials: "include" })
+      .then(r => r.json()).then(setKbStats).catch(() => {});
+  }, [apiBase]);
+
+  return kbStats;
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity({ limit: 8 });
+  const apiBase = useApiBase();
+  const kbStats = useKBStats(apiBase);
 
   if (statsLoading || activityLoading) {
     return (
@@ -231,6 +248,55 @@ export default function Dashboard() {
           </Card>
         </motion.div>
       </div>
+
+      {kbStats && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+          <Card className="p-6 border-purple-500/20 bg-purple-500/[0.02]">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                <Brain className="w-5 h-5 text-purple-400" />
+                Apphia Autonomy Engine
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                <span className="text-xs text-emerald-400">Active</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+              {[
+                { label: "KB Entries", value: kbStats.totalKBEntries, icon: BookOpen, color: "#00f0ff" },
+                { label: "KB Success Rate", value: `${kbStats.avgSuccessRate}%`, icon: BarChart3, color: "#00ff88" },
+                { label: "Auto-Healable", value: kbStats.selfHealableCount, icon: Zap, color: "#a855f7" },
+                { label: "Auto-Created Cases", value: kbStats.monitorStats.autoCreatedCasesCount, icon: GitBranch, color: "#f59e0b" },
+              ].map(s => (
+                <div key={s.label} className="text-center p-3 rounded-xl border border-white/[0.05] bg-white/[0.02]">
+                  <s.icon className="w-4 h-4 mx-auto mb-1.5" style={{ color: s.color }} />
+                  <p className="text-xl font-bold font-display" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[
+                { label: "Monitored Connectors", value: kbStats.monitorStats.monitoredConnectors, color: "text-slate-400" },
+                { label: "Currently Down", value: kbStats.monitorStats.activeDownConnectors, color: kbStats.monitorStats.activeDownConnectors > 0 ? "text-red-400" : "text-emerald-400" },
+                { label: "Technology Domains", value: kbStats.domains, color: "text-slate-400" },
+              ].map(s => (
+                <div key={s.label} className="p-3 rounded-lg border border-white/[0.04] bg-white/[0.02] text-center">
+                  <p className={`text-xl font-bold font-display ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-slate-600">{s.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-600">Proactive monitoring active · 5-min cycles · Auto-creates cases on outage</span>
+              <Link href="/kb" className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
+                Browse KB <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </Card>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div

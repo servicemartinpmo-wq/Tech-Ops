@@ -22,7 +22,8 @@ import {
   BarChart3,
   Monitor,
   Search,
-  Command
+  Command,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/connectors", label: "Connector Health", icon: Activity },
   { href: "/automation", label: "Automation Center", icon: Cpu },
   { href: "/security", label: "Security & Privacy", icon: ShieldCheck },
+  { href: "/kb", label: "Knowledge Base", icon: BookOpen },
   { href: "/stack-intelligence", label: "Stack Intelligence", icon: Brain },
   { href: "/pmo-ops", label: "PMO-Ops", icon: BarChart3 },
   { href: "/remote-assistance", label: "Remote Assistance", icon: Monitor },
