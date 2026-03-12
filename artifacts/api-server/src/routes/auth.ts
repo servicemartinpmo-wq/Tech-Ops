@@ -172,10 +172,10 @@ router.get("/callback", async (req: Request, res: Response) => {
   const sessionData: SessionData = {
     user: {
       id: dbUser.id,
-      email: dbUser.email,
-      firstName: dbUser.firstName,
-      lastName: dbUser.lastName,
-      profileImageUrl: dbUser.profileImageUrl,
+      email: dbUser.email ?? undefined,
+      firstName: dbUser.firstName ?? undefined,
+      lastName: dbUser.lastName ?? undefined,
+      profileImageUrl: dbUser.profileImageUrl ?? undefined,
     },
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
@@ -242,10 +242,10 @@ router.post(
       const sessionData: SessionData = {
         user: {
           id: dbUser.id,
-          email: dbUser.email,
-          firstName: dbUser.firstName,
-          lastName: dbUser.lastName,
-          profileImageUrl: dbUser.profileImageUrl,
+          email: dbUser.email ?? undefined,
+          firstName: dbUser.firstName ?? undefined,
+          lastName: dbUser.lastName ?? undefined,
+          profileImageUrl: dbUser.profileImageUrl ?? undefined,
         },
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

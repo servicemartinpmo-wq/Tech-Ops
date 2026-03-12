@@ -15,7 +15,7 @@ export function useSseChat(conversationId: number | null) {
 
       try {
         // Optimistically add user message if desired, but here we just rely on the server 
-        // returning the stream for the assistant. The server saves the user message.
+        // returning the stream for Apphia. The server saves the user message.
         const res = await fetch(`/api/openai/conversations/${conversationId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

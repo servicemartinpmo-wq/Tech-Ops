@@ -24,9 +24,13 @@ async function getStripeCredentials() {
       }
       const response = await fetch(url, { headers });
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as Record<string, string>;
+        const secretKey = data.stripeSecretKey || data.secret;
+        if (!secretKey) {
+          throw new Error("Stripe credentials response missing secret key");
+        }
         cachedCredentials = {
-          stripeSecretKey: data.stripeSecretKey || data.secret,
+          stripeSecretKey: secretKey,
           stripeWebhookSecret: data.stripeWebhookSecret || data.webhookSecret || "",
         };
         return cachedCredentials;
@@ -61,6 +65,7 @@ export async function getStripeSync(): Promise<StripeSync> {
     stripeSecretKey: credentials.stripeSecretKey,
     stripeWebhookSecret: credentials.stripeWebhookSecret,
     databaseUrl,
+    poolConfig: {},
   });
   return stripeSyncInstance;
 }

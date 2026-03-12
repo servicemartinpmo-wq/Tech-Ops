@@ -10,7 +10,7 @@ import { getTierLimits } from "../middleware/tierGating";
 const router: IRouter = Router();
 
 router.get("/cases", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -35,7 +35,7 @@ router.get("/cases", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/cases", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -61,7 +61,7 @@ router.post("/cases", async (req, res: Response): Promise<void> => {
 });
 
 router.get("/cases/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -84,7 +84,7 @@ router.get("/cases/:id", async (req, res: Response): Promise<void> => {
 });
 
 router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -119,7 +119,7 @@ router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -299,7 +299,7 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
 });
 
 router.post("/cases/batch", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;

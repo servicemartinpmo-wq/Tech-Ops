@@ -21,7 +21,7 @@ export default function SubmitCase() {
     e.preventDefault();
     if (!title.trim()) return;
     createCase(
-      { data: { title, description, priority } },
+      { data: { title, description, priority: priority as "low" | "medium" | "high" | "critical" } },
       {
         onSuccess: (data) => {
           setLocation(`/cases/${data.id}`);

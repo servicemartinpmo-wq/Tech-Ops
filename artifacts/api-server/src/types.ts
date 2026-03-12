@@ -10,5 +10,4 @@ export interface AuthenticatedUser {
 
 export interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
-  isAuthenticated(): boolean;
 }

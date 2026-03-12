@@ -7,7 +7,7 @@ import type { AuthenticatedRequest } from "../types";
 const router: IRouter = Router();
 
 router.get("/automation/rules", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -22,7 +22,7 @@ router.get("/automation/rules", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/automation/rules", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -50,7 +50,7 @@ router.post("/automation/rules", async (req, res: Response): Promise<void> => {
 });
 
 router.patch("/automation/rules/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -80,7 +80,7 @@ router.patch("/automation/rules/:id", async (req, res: Response): Promise<void> 
 });
 
 router.delete("/automation/rules/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;

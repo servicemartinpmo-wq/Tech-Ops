@@ -8,7 +8,7 @@ import { getTierLimits } from "../middleware/tierGating";
 const router: IRouter = Router();
 
 router.get("/batches", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -24,7 +24,7 @@ router.get("/batches", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/batches", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -71,7 +71,7 @@ router.post("/batches", async (req, res: Response): Promise<void> => {
 });
 
 router.get("/batches/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -99,7 +99,7 @@ router.get("/batches/:id", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/batches/:id/cancel", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;

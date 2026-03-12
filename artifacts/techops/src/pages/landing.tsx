@@ -59,7 +59,7 @@ export default function Landing() {
           </h1>
           
           <p className="text-lg md:text-xl text-slate-600 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Your personal CTO companion. Diagnose issues, monitor connector health, and automate workflows with unprecedented intelligence and precision.
+            Powered by the Apphia Engine. Diagnose issues, monitor connector health, and automate workflows with unprecedented intelligence and precision.
           </p>
 
           <Button onClick={login} size="lg" className="h-16 px-10 text-lg group rounded-full">

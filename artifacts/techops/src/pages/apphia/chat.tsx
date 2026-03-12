@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useListOpenaiConversations, useCreateOpenaiConversation, useListOpenaiMessages } from "@workspace/api-client-react";
 import { useSseChat } from "@/hooks/use-sse-chat";
 import { Card, Button, Input } from "@/components/ui";
-import { MessageSquarePlus, Send, Sparkles, Bot, User, Trash2 } from "lucide-react";
+import { MessageSquarePlus, Send, Sparkles, Cpu, User, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -21,7 +21,9 @@ export default function ApphiaChat() {
     }
   }, [conversations, activeId]);
 
-  const { data: messages, isLoading: isMessagesLoading } = useListOpenaiMessages(activeId || 0, { query: { enabled: !!activeId } });
+  const messagesQuery = useListOpenaiMessages(activeId || 0);
+  const messages = activeId ? messagesQuery.data : undefined;
+  const isMessagesLoading = activeId ? messagesQuery.isLoading : false;
   const { sendMessage, isStreaming, streamedText } = useSseChat(activeId);
 
   const handleNewChat = () => {
@@ -108,7 +110,7 @@ export default function ApphiaChat() {
                 return (
                   <div key={msg.id} className={cn("flex gap-4 max-w-3xl", isUser ? "ml-auto flex-row-reverse" : "")}>
                     <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1", isUser ? "bg-slate-200" : "bg-primary/10")}>
-                      {isUser ? <User className="w-4 h-4 text-slate-600" /> : <Bot className="w-4 h-4 text-primary" />}
+                      {isUser ? <User className="w-4 h-4 text-slate-600" /> : <Cpu className="w-4 h-4 text-primary" />}
                     </div>
                     <div className={cn(
                       "p-4 rounded-2xl text-sm leading-relaxed shadow-sm border",
@@ -126,7 +128,7 @@ export default function ApphiaChat() {
               {(isStreaming || streamedText) && (
                 <div className="flex gap-4 max-w-3xl">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-1">
-                    <Bot className="w-4 h-4 text-primary" />
+                    <Cpu className="w-4 h-4 text-primary" />
                   </div>
                   <div className="p-4 rounded-2xl text-sm leading-relaxed shadow-sm border bg-white text-slate-800 border-slate-200 rounded-tl-sm min-w-[3rem]">
                     {streamedText || <span className="flex gap-1 items-center h-5"><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" /><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}} /><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay: '0.4s'}} /></span>}

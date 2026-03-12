@@ -15,7 +15,7 @@ const DEFAULT_CONNECTORS = [
 ];
 
 router.get("/connectors/health", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -49,7 +49,7 @@ router.get("/connectors/health", async (req, res: Response): Promise<void> => {
 });
 
 router.post("/connectors/health/:name/poll", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;

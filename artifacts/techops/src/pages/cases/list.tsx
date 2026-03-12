@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 
 export default function CasesList() {
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const { data: cases, isLoading } = useListCases(statusFilter ? { status: statusFilter } : undefined);
+  const { data: cases, isLoading } = useListCases(statusFilter ? { status: statusFilter as "open" | "in_progress" | "resolved" | "closed" } : undefined);
   const { mutate: runBatch, isPending: isBatchRunning } = useRunBatchDiagnostics();
   
   // Create state

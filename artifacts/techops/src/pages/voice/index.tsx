@@ -131,14 +131,14 @@ export default function VoicePanel() {
                 <div className="flex items-center justify-center gap-4">
                   <Button
                     variant={isMuted ? "destructive" : "outline"}
-                    size="icon"
+                    size="sm"
                     className="rounded-full w-12 h-12"
                     onClick={() => setIsMuted(!isMuted)}
                   >
                     {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   </Button>
                   <Button
-                    variant={isListening ? "default" : "outline"}
+                    variant={isListening ? "primary" : "outline"}
                     size="lg"
                     className={`rounded-full px-8 ${isListening ? "bg-primary animate-pulse" : ""}`}
                     onClick={toggleListening}
@@ -147,7 +147,7 @@ export default function VoicePanel() {
                   </Button>
                   <Button
                     variant={!isSpeakerOn ? "destructive" : "outline"}
-                    size="icon"
+                    size="sm"
                     className="rounded-full w-12 h-12"
                     onClick={() => setIsSpeakerOn(!isSpeakerOn)}
                   >
@@ -155,7 +155,7 @@ export default function VoicePanel() {
                   </Button>
                   <Button
                     variant="destructive"
-                    size="icon"
+                    size="sm"
                     className="rounded-full w-12 h-12"
                     onClick={endSession}
                   >
@@ -179,7 +179,7 @@ export default function VoicePanel() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Mode</span>
-                <span className="font-medium text-slate-700">Diagnostic Assistant</span>
+                <span className="font-medium text-slate-700">Apphia Engine</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Language</span>

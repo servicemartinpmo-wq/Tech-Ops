@@ -8,7 +8,7 @@ import type { AuthenticatedRequest } from "../types";
 const router: IRouter = Router();
 
 router.get("/openai/conversations", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -24,7 +24,7 @@ router.get("/openai/conversations", async (req, res: Response): Promise<void> =>
 });
 
 router.post("/openai/conversations", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -45,7 +45,7 @@ router.post("/openai/conversations", async (req, res: Response): Promise<void> =
 });
 
 router.get("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -74,7 +74,7 @@ router.get("/openai/conversations/:id", async (req, res: Response): Promise<void
 });
 
 router.delete("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -97,7 +97,7 @@ router.delete("/openai/conversations/:id", async (req, res: Response): Promise<v
 });
 
 router.get("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -126,7 +126,7 @@ router.get("/openai/conversations/:id/messages", async (req, res: Response): Pro
 });
 
 router.post("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
-  const authReq = req as AuthenticatedRequest;
+  const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;

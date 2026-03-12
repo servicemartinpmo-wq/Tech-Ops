@@ -41,7 +41,7 @@ export function getTierLimits(tier: string) {
 
 export function requireFeature(feature: string) {
   return async (req: unknown, res: Response, next: NextFunction) => {
-    const authReq = req as AuthenticatedRequest;
+    const authReq = req as unknown as AuthenticatedRequest;
     if (!authReq.isAuthenticated()) {
       res.status(401).json({ error: "Not authenticated" });
       return;
@@ -66,7 +66,7 @@ export function requireFeature(feature: string) {
 
 export function requireRole(...roles: string[]) {
   return async (req: unknown, res: Response, next: NextFunction) => {
-    const authReq = req as AuthenticatedRequest;
+    const authReq = req as unknown as AuthenticatedRequest;
     if (!authReq.isAuthenticated()) {
       res.status(401).json({ error: "Not authenticated" });
       return;
