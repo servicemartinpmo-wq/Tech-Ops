@@ -3,13 +3,29 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Tech-Ops by Martin PMO API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: openai
+    description: OpenAI AI chat, image, and audio operations
+  - name: cases
+    description: Diagnostic case operations
+  - name: stripe
+    description: Stripe subscription and billing operations
+  - name: dashboard
+    description: Dashboard and analytics endpoints
+  - name: connectors
+    description: Connector health monitoring
+  - name: automation
+    description: Automation center operations
+  - name: preferences
+    description: Preferences quiz operations
 paths:
   /healthz:
     get:
@@ -24,7 +40,621 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect on completion.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to OIDC provider logout URL.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Invalid fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+  /openai/conversations:
+    get:
+      operationId: listOpenaiConversations
+      tags: [openai]
+      summary: List all conversations
+      responses:
+        "200":
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiConversation"
+    post:
+      operationId: createOpenaiConversation
+      tags: [openai]
+      summary: Create a new conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOpenaiConversationBody"
+      responses:
+        "201":
+          description: Created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversation"
+  /openai/conversations/{id}:
+    get:
+      operationId: getOpenaiConversation
+      tags: [openai]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiConversationWithMessages"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+    delete:
+      operationId: deleteOpenaiConversation
+      tags: [openai]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenaiError"
+  /openai/conversations/{id}/messages:
+    get:
+      operationId: listOpenaiMessages
+      tags: [openai]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OpenaiMessage"
+    post:
+      operationId: sendOpenaiMessage
+      tags: [openai]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenaiMessageBody"
+      responses:
+        "200":
+          description: SSE stream of assistant text chunks
+          content:
+            text/event-stream: {}
+  /openai/conversations/{id}/voice-messages:
+    post:
+      operationId: sendOpenaiVoiceMessage
+      tags: [openai]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOpenaiVoiceMessageBody"
+      responses:
+        "200":
+          description: SSE stream of transcript and audio chunks
+          content:
+            text/event-stream: {}
+  /openai/generate-image:
+    post:
+      operationId: generateOpenaiImage
+      tags: [openai]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateOpenaiImageBody"
+      responses:
+        "200":
+          description: Generated image data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateOpenaiImageResponse"
+  /cases:
+    get:
+      operationId: listCases
+      tags: [cases]
+      summary: List user diagnostic cases
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, in_progress, resolved, closed]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiagnosticCase"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Create a new diagnostic case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseBody"
+      responses:
+        "201":
+          description: Created case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticCase"
+  /cases/{id}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticCase"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: updateCase
+      tags: [cases]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCaseBody"
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiagnosticCase"
+  /cases/{id}/diagnose:
+    post:
+      operationId: runDiagnostic
+      tags: [cases]
+      summary: Run Apphia diagnostic pipeline on a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: SSE stream of diagnostic progress
+          content:
+            text/event-stream: {}
+  /cases/batch:
+    post:
+      operationId: runBatchDiagnostics
+      tags: [cases]
+      summary: Run parallel batch diagnostics on multiple cases
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchDiagnosticsBody"
+      responses:
+        "200":
+          description: SSE stream of batch progress
+          content:
+            text/event-stream: {}
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+  /dashboard/activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent activity feed
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+  /connectors/health:
+    get:
+      operationId: listConnectorHealth
+      tags: [connectors]
+      summary: Get health status of all connectors
+      responses:
+        "200":
+          description: Connector health statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConnectorHealthStatus"
+  /connectors/health/{name}/poll:
+    post:
+      operationId: pollConnectorHealth
+      tags: [connectors]
+      summary: Poll a specific connector for health
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectorHealthStatus"
+  /automation/rules:
+    get:
+      operationId: listAutomationRules
+      tags: [automation]
+      summary: List all automation rules
+      responses:
+        "200":
+          description: List of rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AutomationRuleResponse"
+    post:
+      operationId: createAutomationRule
+      tags: [automation]
+      summary: Create an automation rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAutomationRuleBody"
+      responses:
+        "201":
+          description: Created rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRuleResponse"
+  /automation/rules/{id}:
+    patch:
+      operationId: updateAutomationRule
+      tags: [automation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAutomationRuleBody"
+      responses:
+        "200":
+          description: Updated rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutomationRuleResponse"
+    delete:
+      operationId: deleteAutomationRule
+      tags: [automation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+  /preferences/quiz:
+    get:
+      operationId: getPreferencesQuiz
+      tags: [preferences]
+      summary: Get preferences quiz questions
+      responses:
+        "200":
+          description: Quiz questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferencesQuizQuestions"
+    post:
+      operationId: submitPreferencesQuiz
+      tags: [preferences]
+      summary: Submit preferences quiz answers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitPreferencesQuizBody"
+      responses:
+        "200":
+          description: Quiz profile result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferencesProfile"
+  /preferences/profile:
+    get:
+      operationId: getPreferencesProfile
+      tags: [preferences]
+      summary: Get user preferences profile
+      responses:
+        "200":
+          description: User preferences profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferencesProfile"
+  /stripe/products:
+    get:
+      operationId: listStripeProducts
+      tags: [stripe]
+      summary: List subscription products with prices
+      responses:
+        "200":
+          description: Products with prices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StripeProductsResponse"
+  /stripe/checkout:
+    post:
+      operationId: createCheckoutSession
+      tags: [stripe]
+      summary: Create a checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckoutBody"
+      responses:
+        "200":
+          description: Checkout URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSessionResponse"
+  /stripe/subscription:
+    get:
+      operationId: getSubscription
+      tags: [stripe]
+      summary: Get current user subscription
+      responses:
+        "200":
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+  /stripe/portal:
+    post:
+      operationId: createPortalSession
+      tags: [stripe]
+      summary: Create a billing portal session
+      responses:
+        "200":
+          description: Portal URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortalSessionResponse"
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +663,472 @@ components:
           type: string
       required:
         - status
-
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          format: uri
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    OpenaiConversation:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - createdAt
+    OpenaiMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        conversationId:
+          type: integer
+        role:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - createdAt
+    CreateOpenaiConversationBody:
+      type: object
+      properties:
+        title:
+          type: string
+      required:
+        - title
+    SendOpenaiMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+    SendOpenaiVoiceMessageBody:
+      type: object
+      properties:
+        audio:
+          type: string
+      required:
+        - audio
+    OpenaiConversationWithMessages:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenaiMessage"
+      required:
+        - id
+        - title
+        - createdAt
+        - messages
+    GenerateOpenaiImageBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+        size:
+          type: string
+          enum: ["1024x1024", "512x512", "256x256"]
+      required:
+        - prompt
+    GenerateOpenaiImageResponse:
+      type: object
+      properties:
+        b64_json:
+          type: string
+      required:
+        - b64_json
+    OpenaiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    DiagnosticCase:
+      type: object
+      required: [id, userId, title, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        title:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        priority:
+          type: [string, 'null']
+        diagnosticTier:
+          type: [integer, 'null']
+        rootCause:
+          type: [string, 'null']
+        resolution:
+          type: [string, 'null']
+        signals:
+          type: ['object', 'null']
+        udoPath:
+          type: ['object', 'null']
+        confidenceScore:
+          type: [integer, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: [string, 'null']
+          format: date-time
+    CreateCaseBody:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+    UpdateCaseBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        resolution:
+          type: string
+    BatchDiagnosticsBody:
+      type: object
+      required: [caseIds]
+      properties:
+        caseIds:
+          type: array
+          items:
+            type: integer
+    DashboardStats:
+      type: object
+      required: [totalCases, openCases, resolvedCases, avgResolutionTime, connectorHealth, subscriptionTier]
+      properties:
+        totalCases:
+          type: integer
+        openCases:
+          type: integer
+        resolvedCases:
+          type: integer
+        avgResolutionTime:
+          type: [number, 'null']
+        connectorHealth:
+          type: object
+          properties:
+            healthy:
+              type: integer
+            degraded:
+              type: integer
+            down:
+              type: integer
+          required: [healthy, degraded, down]
+        subscriptionTier:
+          type: string
+    ActivityItem:
+      type: object
+      required: [id, type, message, timestamp]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [case_created, case_resolved, diagnostic_run, automation_triggered, connector_alert]
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        caseId:
+          type: [integer, 'null']
+    ConnectorHealthStatus:
+      type: object
+      required: [id, connectorName, status, lastChecked]
+      properties:
+        id:
+          type: integer
+        connectorName:
+          type: string
+        status:
+          type: string
+          enum: [healthy, degraded, down, unknown]
+        lastChecked:
+          type: string
+          format: date-time
+        responseTime:
+          type: [integer, 'null']
+        errorMessage:
+          type: [string, 'null']
+    AutomationRuleResponse:
+      type: object
+      required: [id, userId, name, trigger, action, enabled, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        trigger:
+          type: string
+        action:
+          type: string
+        enabled:
+          type: string
+        permissions:
+          type: ['object', 'null']
+        executionCount:
+          type: [integer, 'null']
+        lastExecuted:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateAutomationRuleBody:
+      type: object
+      required: [name, trigger, action]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        trigger:
+          type: string
+        action:
+          type: string
+        permissions:
+          type: object
+    UpdateAutomationRuleBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        trigger:
+          type: string
+        action:
+          type: string
+        enabled:
+          type: string
+        permissions:
+          type: object
+    PreferencesQuizQuestions:
+      type: object
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizQuestion"
+    QuizQuestion:
+      type: object
+      required: [id, question, options]
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        description:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuizOption"
+    QuizOption:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+    SubmitPreferencesQuizBody:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: object
+    PreferencesProfile:
+      type: object
+      required: [communicationStyle, detailLevel, proactivity, technicalDepth]
+      properties:
+        communicationStyle:
+          type: string
+          enum: [concise, balanced, detailed]
+        detailLevel:
+          type: string
+          enum: [summary, standard, comprehensive]
+        proactivity:
+          type: string
+          enum: [reactive, balanced, proactive]
+        technicalDepth:
+          type: string
+          enum: [simplified, moderate, technical]
+        completed:
+          type: boolean
+    StripeProductsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StripeProduct"
+    StripeProduct:
+      type: object
+      required: [id, name, prices]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        metadata:
+          type: object
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/StripePrice"
+    StripePrice:
+      type: object
+      required: [id, unitAmount, currency]
+      properties:
+        id:
+          type: string
+        unitAmount:
+          type: integer
+        currency:
+          type: string
+        recurring:
+          type: ['object', 'null']
+        active:
+          type: boolean
+    CreateCheckoutBody:
+      type: object
+      required: [priceId]
+      properties:
+        priceId:
+          type: string
+    CheckoutSessionResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+    SubscriptionResponse:
+      type: object
+      properties:
+        subscription:
+          type: ['object', 'null']
+        tier:
+          type: string
+    PortalSessionResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string

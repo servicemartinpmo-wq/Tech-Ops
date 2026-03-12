@@ -1,0 +1,22 @@
+packages:
+  "framer-motion": "For fluid animations, page transitions, and staggered list reveals"
+  "recharts": "For beautiful dashboard analytics and metrics visualization"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to safely merge Tailwind CSS classes"
+  "date-fns": "For formatting timestamps elegantly"
+
+images:
+  - path: "artifacts/techops/public/images/hero-bg.png"
+    description: "A soft, elegant abstract background featuring gentle sweeping gradients in warm neutrals (cream, linen) and soft professional slate blues. Very clean, premium, corporate aesthetic, like a modern SaaS platform."
+    aspect_ratio: "16:9"
+  - path: "artifacts/techops/public/images/logo-mark.png"
+    description: "A minimal, abstract geometric logo mark in deep slate blue and warm gold. Clean vector style, transparent background, looking like a sophisticated AI or operations engine."
+    aspect_ratio: "1:1"
+  - path: "artifacts/techops/public/images/apphia-avatar.png"
+    description: "A beautiful, ethereal glowing orb or geometric core in soft blue and warm neutral colors, representing a friendly, intelligent knowledge system. No human face, just a sophisticated digital construct."
+    aspect_ratio: "1:1"
+
+notes:
+  - Uses @workspace/replit-auth-web for authentication.
+  - API calls rely on @workspace/api-client-react.
+  - SSE streaming for chat and diagnostics is implemented using native fetch and ReadableStream.
