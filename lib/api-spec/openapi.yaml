@@ -13,7 +13,7 @@ tags:
   - name: Auth
     description: Browser and mobile authentication endpoints.
   - name: openai
-    description: OpenAI AI chat, image, and audio operations
+    description: Apphia Engine chat, image, and audio operations
   - name: cases
     description: Diagnostic case operations
   - name: stripe
