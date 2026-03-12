@@ -102,4 +102,40 @@ router.delete("/automation/rules/:id", async (req, res: Response): Promise<void>
   res.sendStatus(204);
 });
 
+router.post("/automation/translate", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== "string") {
+    res.status(400).json({ error: "prompt is required" });
+    return;
+  }
+
+  const p = prompt.toLowerCase();
+
+  let trigger = "alert_high_cpu";
+  let action = "restart_service";
+
+  if (p.includes("cpu") || p.includes("processor")) trigger = "alert_high_cpu";
+  else if (p.includes("memory") || p.includes("ram")) trigger = "alert_memory_leak";
+  else if (p.includes("connector") || p.includes("offline") || p.includes("down")) trigger = "connector_down";
+  else if (p.includes("case") || p.includes("critical") || p.includes("ticket")) trigger = "case_created";
+  else if (p.includes("disk") || p.includes("storage")) trigger = "disk_space_low";
+  else if (p.includes("slow") || p.includes("response") || p.includes("latency")) trigger = "response_time_spike";
+
+  if (p.includes("restart") || p.includes("reboot")) action = "restart_service";
+  else if (p.includes("scale") || p.includes("capacity")) action = "scale_up";
+  else if (p.includes("page") || p.includes("notify") || p.includes("alert") || p.includes("engineer") || p.includes("oncall")) action = "notify_oncall";
+  else if (p.includes("diagnos") || p.includes("apphia") || p.includes("investigat")) action = "run_diagnostic";
+  else if (p.includes("log") || p.includes("collect") || p.includes("archive")) action = "collect_logs";
+  else if (p.includes("failover") || p.includes("redirect") || p.includes("backup")) action = "failover";
+
+  const name = prompt.length > 60 ? prompt.slice(0, 57).trim() + "..." : prompt.trim();
+  res.json({ name, trigger, action });
+});
+
 export default router;

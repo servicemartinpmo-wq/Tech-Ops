@@ -5,6 +5,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
 
 import { Layout } from "@/components/layout";
+import { CasePopup } from "@/components/case-popup";
+import { VoiceOrb } from "@/components/voice-orb";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/list";
@@ -49,6 +51,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return (
     <Layout>
       <Component />
+      <CasePopup />
+      <VoiceOrb />
     </Layout>
   );
 }

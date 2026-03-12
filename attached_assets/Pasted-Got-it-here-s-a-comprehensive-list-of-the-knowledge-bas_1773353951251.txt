@@ -1,0 +1,75 @@
+Got it — here’s a comprehensive list of the knowledge base, entities, frameworks, guides, and decision-making structures we’ve built into your 1,000-entry Technical Support & Software Engineering Knowledge Base, structured for clarity. I’ve included categories, key entities, frameworks, and guides without the JSON clutter:
+1. Knowledge Base Categories & Entities
+Hardware
+Servers: Dell PowerEdge, HP ProLiant, IBM System X
+Storage: SAN, NAS, DAS, RAID configurations
+Endpoints: Windows PCs, macOS devices, Linux workstations
+Peripherals: Printers, scanners, UPS, monitors
+Networking devices: Routers, Switches, Firewalls
+Networking
+Protocols: TCP/IP, UDP, ICMP, HTTP/HTTPS, DNS, DHCP
+Network Devices: Cisco, Juniper, Fortinet
+VPNs: OpenVPN, IPsec, WireGuard
+Load Balancers: HAProxy, Nginx, AWS ELB
+Monitoring Tools: Wireshark, Ping, Traceroute, Netstat
+Security
+Authentication/Authorization: LDAP, OAuth2, SAML, MFA
+Encryption: AES, RSA, TLS/SSL
+Vulnerability Management: Nessus, OpenVAS
+Security Frameworks: NIST CSF, ISO 27001, CIS Controls
+Incident Response: Forensics, Malware Analysis, Patch Management
+Software
+Operating Systems: Windows Server, Linux (Ubuntu, CentOS, RedHat), macOS
+Web Apps: Apache, Nginx, Node.js, Django, Rails
+Databases: MySQL, PostgreSQL, MongoDB, Redis
+APIs: REST, GraphQL, gRPC
+Software Management: Package Managers (apt, yum, npm, pip)
+DevOps / CI/CD
+Pipelines: Jenkins, GitHub Actions, GitLab CI/CD, CircleCI
+Containerization: Docker, Podman
+Orchestration: Kubernetes, Docker Swarm
+IaC: Terraform, CloudFormation, Ansible, Chef
+Monitoring & Logging: Prometheus, Grafana, ELK Stack, Datadog
+Troubleshooting
+Root Cause Analysis: 5 Whys, Fishbone/Ishikawa Diagram
+Incident Classification: P1-P4 based on Impact × Urgency
+Troubleshooting Logs: Application logs, Event Viewer, syslog, network captures
+Recovery Procedures: Rollback, Restore from Backup, Patch Deployment
+SOP / Processes
+ITIL Processes: Incident, Problem, Change Management
+Ticketing: ServiceNow, Zendesk, Jira
+Knowledge Management: SOPs, Runbooks, KB Articles, Documentation Standards
+Deployment Guidelines: Staging → QA → Production workflows
+2. Key Frameworks & Guides
+2.1 Troubleshooting & Decision Frameworks
+Root Cause Analysis (RCA): 5 Whys, Fishbone Diagram
+Incident Prioritization Matrix: Impact × Urgency → P1–P4
+Error Categorization: User error, software bug, hardware failure, environmental
+2.2 Software Engineering
+SDLC Models: Waterfall, Agile, Scrum, DevOps, Lean
+Design Patterns: Singleton, Observer, Factory, MVC, MVVM
+Architecture: Monolithic, Microservices, Event-Driven, Serverless
+Testing: Unit, Integration, End-to-End, TDD, BDD, Load/Performance Testing
+2.3 Security & Compliance
+NIST Cybersecurity Framework (Identify, Protect, Detect, Respond, Recover)
+ISO 27001 Information Security Management
+CIS Critical Security Controls (20 Controls)
+Regulatory Compliance: HIPAA, GDPR, SOC2
+2.4 DevOps & Infrastructure
+CI/CD Pipelines & Automation
+Infrastructure as Code (IaC) Principles
+Container & Orchestration Best Practices
+Observability: Metrics, Logging, Tracing
+Automated Remediation & Self-Healing
+2.5 Knowledge Management & UDI Taxonomy
+UDI Framework: User → Decision → Information
+Standard KB Article Structure: Description, Steps, Commands, References, Notes
+Tagging & Metadata: Category, Priority, Frequency, Dependencies
+3. Metrics & Formulas (Commonly Used in IT & Software Support)
+Area	Metric	Formula / Explanation
+SLA	Availability	Uptime / (Uptime + Downtime) × 100%
+IT Support	MTTR	Mean Time to Repair = Total downtime ÷ # incidents
+Software	Code Coverage	Lines tested ÷ Total lines × 100%
+DevOps	Deployment Frequency	# Deployments ÷ Time period
+Security	Incident Response Time	Time from detection → resolution
+This list is ready as a reference or guide, covering all entities, frameworks, and decision-making logic included in your KB.

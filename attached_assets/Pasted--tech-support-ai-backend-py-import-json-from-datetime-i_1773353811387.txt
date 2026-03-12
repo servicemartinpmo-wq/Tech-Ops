@@ -1,0 +1,138 @@
+# tech_support_ai_backend.py
+import json
+from datetime import datetime
+from typing import List, Dict, Any
+import math
+import random
+
+# ----------------------------
+# Sample KB Entries (JSON)
+# ----------------------------
+KB = [
+    {
+        "ID": "TS-0456",
+        "Domain": "Networking",
+        "Subdomain": "VPN",
+        "Issue_Type": "Connectivity",
+        "Symptoms": ["Cannot connect VPN", "VPN timeout", "Authentication failed"],
+        "Resolution_Steps": [
+            "Check VPN client configuration",
+            "Verify username/password",
+            "Restart VPN service",
+            "Check firewall and network connectivity"
+        ],
+        "Tier": "Tier1",
+        "Tags": ["VPN", "Windows11", "Network"],
+        "Historical_Success": 0.85
+    },
+    {
+        "ID": "TS-0789",
+        "Domain": "OS",
+        "Subdomain": "Windows",
+        "Issue_Type": "Software",
+        "Symptoms": ["App crashes on launch", "Blue screen"],
+        "Resolution_Steps": [
+            "Check system logs",
+            "Update OS and drivers",
+            "Reinstall application",
+            "Escalate to Tier2 if persists"
+        ],
+        "Tier": "Tier1",
+        "Tags": ["Windows11", "AppCrash"],
+        "Historical_Success": 0.78
+    }
+]
+
+# ----------------------------
+# Utility Functions
+# ----------------------------
+def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+    dot = sum(a*b for a,b in zip(vec1, vec2))
+    norm1 = math.sqrt(sum(a*a for a in vec1))
+    norm2 = math.sqrt(sum(b*b for b in vec2))
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    return dot / (norm1 * norm2)
+
+def simple_embedding(text: str) -> List[float]:
+    # Very basic embedding: length of words modulo primes
+    words = text.split()
+    primes = [2,3,5,7,11,13,17,19,23,29,31]
+    vec = [(len(word) % primes[i % len(primes)])/10.0 for i, word in enumerate(words)]
+    return vec
+
+# ----------------------------
+# Confidence Score Calculation
+# ----------------------------
+def calculate_confidence(query: str, kb_entry: Dict[str, Any]) -> float:
+    query_vec = simple_embedding(query)
+    symptom_text = " ".join(kb_entry["Symptoms"])
+    kb_vec = simple_embedding(symptom_text)
+    similarity = cosine_similarity(query_vec, kb_vec)
+    historical = kb_entry.get("Historical_Success", 0.5)
+    recency_weight = random.uniform(0.05, 0.15)  # placeholder
+    confidence = 0.6*similarity + 0.3*historical + 0.1*recency_weight
+    return round(confidence, 2)
+
+# ----------------------------
+# KB Lookup & Resolution Suggestion
+# ----------------------------
+def suggest_resolution(query: str, domain: str = None, threshold: float = 0.5) -> Dict[str, Any]:
+    matches = []
+    for entry in KB:
+        if domain and entry["Domain"] != domain:
+            continue
+        score = calculate_confidence(query, entry)
+        if score >= threshold:
+            matches.append((entry, score))
+    if not matches:
+        # No confident match → escalate Tier1
+        return create_udi(query, action="Escalate", reason="No confident KB match", tier="Tier1")
+    
+    # Rank matches by confidence
+    matches.sort(key=lambda x: x[1], reverse=True)
+    best_entry, best_score = matches[0]
+    return create_udi(
+        query=query,
+        kb_id=best_entry["ID"],
+        action="Suggest",
+        reason=f"Confidence {best_score} > threshold",
+        tier=best_entry["Tier"],
+        resolution_steps=best_entry["Resolution_Steps"],
+        confidence_score=best_score
+    )
+
+# ----------------------------
+# UDI JSON Creator
+# ----------------------------
+def create_udi(query: str,
+               kb_id: str = None,
+               action: str = "Escalate",
+               reason: str = "",
+               tier: str = "Tier1",
+               resolution_steps: List[str] = None,
+               confidence_score: float = 0.0) -> Dict[str, Any]:
+    udi = {
+        "UDI_ID": f"UDI-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{random.randint(100,999)}",
+        "Domain": None,
+        "Subdomain": None,
+        "Symptom": query,
+        "Confidence_Score": confidence_score,
+        "Action": action,
+        "Decision_Reason": reason,
+        "Dependencies": [],
+        "Timestamp": datetime.utcnow().isoformat() + "Z",
+        "Escalation_Level": tier,
+        "Feedback_Impact": 0.0,
+        "KB_ID": kb_id,
+        "Resolution_Steps": resolution_steps
+    }
+    return udi
+
+# ----------------------------
+# Example Backend Prompt Simulation
+# ----------------------------
+if __name__ == "__main__":
+    user_query = "My VPN client cannot connect on Windows 11"
+    udi_output = suggest_resolution(user_query, domain="Networking")
+    print(json.dumps(udi_output, indent=4))

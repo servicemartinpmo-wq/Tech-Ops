@@ -249,6 +249,11 @@
   100% { stroke-dashoffset: 0; opacity: 0.3; }
 }
 
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

@@ -6,6 +6,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
 import type { Case } from "@workspace/db";
 import { getTierLimits } from "../middleware/tierGating";
+import { lookupKB, buildSystemPrompt } from "../kb/knowledge-base";
 
 async function countUserCasesForQuota(userId: string): Promise<number> {
   const result = await db
@@ -131,6 +132,29 @@ router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
   res.json(updated);
 });
 
+router.delete("/cases/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(raw, 10);
+
+  const [deleted] = await db
+    .delete(casesTable)
+    .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id)))
+    .returning();
+
+  if (!deleted) {
+    res.status(404).json({ error: "Case not found" });
+    return;
+  }
+
+  res.json({ success: true, id });
+});
+
 router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
@@ -190,6 +214,10 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
       tierOutputs: string[];
     } = { signals: [], udoGraph: {}, rootCauses: [], tierOutputs: [] };
 
+    const udi = lookupKB(caseItem.title + " " + (caseItem.description || ""));
+    const kbSystemPrompt = buildSystemPrompt(udi);
+
+    sendEvent({ type: "udi", data: { udiId: udi.udiId, domain: udi.domain, confidenceScore: udi.confidenceScore, kbId: udi.kbId, action: udi.action } });
     sendEvent({ type: "progress", message: "Stage 1/7: Classification & Signal Extraction" });
 
     for (let tier = 1; tier <= 5; tier++) {
@@ -205,13 +233,17 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
 
       const tierPrompt = getTierPrompt(tier, caseItem, pipelineContext);
 
+      const systemContent = tier === 1
+        ? kbSystemPrompt + `\n\nYou are executing ${stageName} of the 7-stage diagnostic pipeline.`
+        : `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. You are executing ${stageName} of the staged diagnostic pipeline. Be thorough, precise, and structured. Never refer to yourself as "AI" or "assistant". You are "the Apphia Engine" or "Apphia".`;
+
       const stream = await openai.chat.completions.create({
         model: "gpt-4o",
         max_completion_tokens: 8192,
         messages: [
           {
             role: "system",
-            content: `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. You are executing ${stageName} of the staged diagnostic pipeline. Be thorough, precise, and structured. Never refer to yourself as "AI" or "assistant". You are "the Apphia Engine" or "Apphia".`,
+            content: systemContent,
           },
           { role: "user", content: tierPrompt },
         ],

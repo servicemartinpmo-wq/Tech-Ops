@@ -2994,3 +2994,75 @@ export const useCreatePortalSession = <
 > => {
   return useMutation(getCreatePortalSessionMutationOptions(options));
 };
+
+// Custom hook: Delete Case
+export const deleteCase = async (
+  id: number,
+  options?: RequestInit,
+): Promise<{ success: boolean; id: number }> => {
+  return customFetch<{ success: boolean; id: number }>(`/api/cases/${id}`, {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const useDeleteCase = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCase>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCase>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationOptions = options?.mutation;
+  return useMutation({
+    mutationFn: (variables: { id: number }) => deleteCase(variables.id, options?.request),
+    ...mutationOptions,
+  });
+};
+
+// NLP to automation rule translation
+export const translateNlpToRule = async (
+  prompt: string,
+  options?: RequestInit,
+): Promise<{ name: string; trigger: string; action: string }> => {
+  return customFetch<{ name: string; trigger: string; action: string }>("/api/automation/translate", {
+    ...options,
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+    headers: { "Content-Type": "application/json", ...(options?.headers as Record<string, string> | undefined) },
+  });
+};
+
+export const useTranslateNlp = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof translateNlpToRule>>,
+    TError,
+    { prompt: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof translateNlpToRule>>,
+  TError,
+  { prompt: string },
+  TContext
+> => {
+  const mutationOptions = options?.mutation;
+  return useMutation({
+    mutationFn: (variables: { prompt: string }) => translateNlpToRule(variables.prompt, options?.request),
+    ...mutationOptions,
+  });
+};
