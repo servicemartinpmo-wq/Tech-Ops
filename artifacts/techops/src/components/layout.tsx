@@ -40,7 +40,7 @@ export function Layout({ children }: { children: ReactNode }) {
             className="w-8 h-8 object-contain drop-shadow-sm"
           />
           <h1 className="font-display font-bold text-xl tracking-tight text-slate-900">
-            Tech-Ops <span className="text-primary opacity-80">PMO</span>
+            Tech-Ops <span className="text-primary opacity-80">by Martin PMO</span>
           </h1>
         </div>
 

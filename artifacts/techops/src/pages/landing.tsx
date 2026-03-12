@@ -33,7 +33,7 @@ export default function Landing() {
         <div className="flex items-center gap-3">
           <img src={`${import.meta.env.BASE_URL}images/logo-mark.png`} alt="Logo" className="w-10 h-10 drop-shadow-md" />
           <span className="font-display font-bold text-2xl text-slate-900 tracking-tight">
-            Tech-Ops <span className="text-primary">PMO</span>
+            Tech-Ops <span className="text-primary">by Martin PMO</span>
           </span>
         </div>
         <Button onClick={login} variant="outline" className="bg-white/50 backdrop-blur-sm">

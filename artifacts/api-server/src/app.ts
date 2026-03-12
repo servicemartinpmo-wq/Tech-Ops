@@ -29,8 +29,9 @@ app.post(
 
       await WebhookHandlers.processWebhook(req.body as Buffer, sig);
       res.status(200).json({ received: true });
-    } catch (error: any) {
-      console.error('Webhook error:', error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown webhook error";
+      console.error('Webhook error:', message);
       res.status(400).json({ error: 'Webhook processing error' });
     }
   }

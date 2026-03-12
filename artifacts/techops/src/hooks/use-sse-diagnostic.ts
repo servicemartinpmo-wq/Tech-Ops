@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 export interface DiagnosticEvent {
   type: "progress" | "signal" | "udo_path" | "complete" | "error";
   message?: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export function useSseDiagnostic(caseId: number) {
