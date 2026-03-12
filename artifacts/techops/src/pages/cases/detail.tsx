@@ -1,11 +1,15 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useGetCase, useUpdateCase } from "@workspace/api-client-react";
 import { useSseDiagnostic } from "@/hooks/use-sse-diagnostic";
 import { useApiBase } from "@/hooks/use-api-base";
 import { Card, Button, Badge } from "@/components/ui";
-import { ArrowLeft, Play, Terminal, CheckCircle2, AlertTriangle, ShieldAlert, Brain, GitBranch, ThumbsUp, ThumbsDown, Zap, AlertCircle, ChevronRight, BookOpen, ArrowRight } from "lucide-react";
+import {
+  ArrowLeft, Play, Terminal, CheckCircle2, AlertTriangle, ShieldAlert, Brain,
+  GitBranch, ThumbsUp, ThumbsDown, Zap, AlertCircle, ChevronRight, BookOpen,
+  ArrowRight, Cpu, Monitor, X
+} from "lucide-react";
 import { format } from "date-fns";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface DecisionStep {
@@ -29,23 +33,190 @@ interface UDI {
 
 function SeverityBadge({ severity }: { severity: string }) {
   const colors: Record<string, string> = {
-    P1: "bg-red-500/10 text-red-400 border-red-500/20",
-    P2: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    P3: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    P4: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+    P1: "bg-red-50 text-red-600 border-red-200",
+    P2: "bg-amber-50 text-amber-600 border-amber-200",
+    P3: "bg-blue-50 text-blue-600 border-blue-200",
+    P4: "bg-slate-100 text-slate-500 border-slate-200",
   };
   return <span className={`text-xs px-2 py-0.5 rounded border font-mono font-bold ${colors[severity] || colors.P3}`}>{severity}</span>;
 }
 
 function ConfidenceMeter({ score }: { score: number }) {
-  const color = score >= 75 ? "#00ff88" : score >= 50 ? "#ffb800" : "#ff3355";
+  const color = score >= 75 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${score}%`, background: color, boxShadow: `0 0 8px ${color}40` }} />
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${score}%` }} transition={{ duration: 0.8, ease: "easeOut" }} style={{ background: color }} />
       </div>
       <span className="text-xs font-bold font-mono" style={{ color }}>{score}%</span>
     </div>
+  );
+}
+
+function AutoDeployPanel({
+  resolution, confidenceScore, selfHealable, autoMode, setAutoMode, onDeploy, isRunning
+}: {
+  resolution: string | null; confidenceScore: number | null;
+  selfHealable: boolean; autoMode: boolean; setAutoMode: (v: boolean) => void;
+  onDeploy: (withScreenShare: boolean) => void; isRunning: boolean;
+}) {
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployStep, setDeployStep] = useState(0);
+  const [withScreen, setWithScreen] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const cancelCountdown = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setCountdown(null);
+  }, []);
+
+  useEffect(() => {
+    if (autoMode && resolution && !deploying && !isRunning) {
+      const delay = setTimeout(() => {
+        setCountdown(10);
+        timerRef.current = setInterval(() => {
+          setCountdown(c => {
+            if (c === null || c <= 1) {
+              clearInterval(timerRef.current!);
+              setDeploying(true);
+              setDeployStep(0);
+              onDeploy(withScreen);
+              return null;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      }, 800);
+      return () => { clearTimeout(delay); if (timerRef.current) clearInterval(timerRef.current); };
+    }
+  }, [autoMode, resolution, deploying, isRunning]);
+
+  useEffect(() => {
+    if (!deploying) return;
+    const steps = ["Initializing execution context...", "Applying solution steps...", "Verifying outcome...", "Updating case status..."];
+    const iv = setInterval(() => {
+      setDeployStep(s => {
+        if (s >= steps.length - 1) { clearInterval(iv); return s; }
+        return s + 1;
+      });
+    }, 1800);
+    return () => clearInterval(iv);
+  }, [deploying]);
+
+  const deploySteps = [
+    "Initializing execution context...",
+    "Applying solution steps...",
+    "Verifying outcome...",
+    "Updating case status...",
+  ];
+
+  return (
+    <Card className="p-5 border-sky-200 bg-gradient-to-r from-sky-50 to-indigo-50">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-sky-500 flex items-center justify-center shadow-sm">
+            <Cpu className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-sm font-display font-bold text-slate-900">Autonomous Execution</h3>
+            <p className="text-[11px] text-slate-500">Deploy solution without manual confirmation</p>
+          </div>
+        </div>
+        <button
+          onClick={() => { setAutoMode(!autoMode); cancelCountdown(); setDeploying(false); }}
+          className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${autoMode ? "bg-sky-500" : "bg-slate-200"}`}
+        >
+          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${autoMode ? "left-7" : "left-1"}`} />
+        </button>
+      </div>
+
+      {!autoMode && (
+        <div className="text-xs text-slate-500 flex items-start gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+          When enabled, Apphia will automatically deploy the solution once diagnosis is complete — no button click required.
+          {!resolution && " Run the pipeline first to generate a solution."}
+        </div>
+      )}
+
+      {autoMode && !resolution && !isRunning && (
+        <div className="text-xs text-slate-500 flex items-start gap-2">
+          <Zap className="w-3.5 h-3.5 text-sky-500 mt-0.5 shrink-0" />
+          Autonomous mode is armed. Run the Apphia Pipeline — when a solution is ready, deployment will begin automatically.
+        </div>
+      )}
+
+      {autoMode && !resolution && isRunning && (
+        <div className="flex items-center gap-2 text-xs text-sky-600 font-medium">
+          <span className="w-3 h-3 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+          Pipeline running — monitoring for solution readiness...
+        </div>
+      )}
+
+      {autoMode && resolution && countdown !== null && !deploying && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-sky-200">
+            <div className="w-10 h-10 rounded-full bg-sky-500 flex items-center justify-center text-white font-bold text-lg font-display shrink-0" style={{ animation: "sphere-breathe 1s ease-in-out infinite" }}>
+              {countdown}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-900">Deploying solution in {countdown}s</p>
+              <p className="text-xs text-slate-500">Apphia has a solution ready. Deployment begins automatically.</p>
+            </div>
+            <button onClick={cancelCountdown} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-slate-400 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
+            <input type="checkbox" checked={withScreen} onChange={e => setWithScreen(e.target.checked)} className="w-3.5 h-3.5 rounded accent-sky-500" />
+            <Monitor className="w-3.5 h-3.5 text-slate-400" />
+            Include screen share for guided walkthrough
+          </label>
+        </div>
+      )}
+
+      {autoMode && deploying && (
+        <div className="space-y-2">
+          {deploySteps.map((step, i) => (
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: i <= deployStep ? 1 : 0.3, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="flex items-center gap-2 text-xs"
+            >
+              {i < deployStep ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              ) : i === deployStep ? (
+                <span className="w-3.5 h-3.5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              ) : (
+                <div className="w-3.5 h-3.5 rounded-full border border-slate-200 shrink-0" />
+              )}
+              <span className={i <= deployStep ? "text-slate-700" : "text-slate-400"}>{step}</span>
+            </motion.div>
+          ))}
+          {deployStep >= deploySteps.length - 1 && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 mt-2 pt-2 border-t border-sky-100 text-xs font-semibold text-emerald-600">
+              <CheckCircle2 className="w-4 h-4" />
+              Solution deployed successfully by Apphia
+            </motion.div>
+          )}
+        </div>
+      )}
+
+      {autoMode && resolution && countdown === null && !deploying && (
+        <div className="flex gap-2 mt-1">
+          <Button size="sm" onClick={() => onDeploy(false)} className="gap-1.5 text-xs bg-sky-500 hover:bg-sky-400 text-white shadow-sm">
+            <Zap className="w-3.5 h-3.5" />
+            Deploy Now
+          </Button>
+          <Button size="sm" onClick={() => onDeploy(true)} variant="outline" className="gap-1.5 text-xs border-sky-200 text-sky-600">
+            <Monitor className="w-3.5 h-3.5" />
+            Deploy with Screen Share
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -71,7 +242,7 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <SeverityBadge severity={tree.severity} />
-        <span className={`text-xs px-2 py-0.5 rounded border ${udi.action === "AutoResolve" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" : udi.action === "Escalate" ? "text-red-400 border-red-500/20 bg-red-500/5" : "text-cyan-400 border-cyan-500/20 bg-cyan-500/5"}`}>
+        <span className={`text-xs px-2 py-0.5 rounded border font-medium ${udi.action === "AutoResolve" ? "text-emerald-600 border-emerald-200 bg-emerald-50" : udi.action === "Escalate" ? "text-red-600 border-red-200 bg-red-50" : "text-sky-600 border-sky-200 bg-sky-50"}`}>
           {udi.action === "AutoResolve" && <Zap className="w-3 h-3 inline mr-1" />}
           {udi.action}
         </span>
@@ -79,13 +250,13 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
       </div>
 
       <ConfidenceMeter score={udi.confidenceScore} />
-      <p className="text-xs text-slate-400">{udi.decisionReason}</p>
+      <p className="text-xs text-slate-500">{udi.decisionReason}</p>
 
       {udi.synonymsMatched.length > 0 && (
-        <p className="text-xs text-slate-600">Semantic expansion: {udi.synonymsMatched.slice(0, 6).join(" · ")}</p>
+        <p className="text-xs text-slate-400">Semantic expansion: {udi.synonymsMatched.slice(0, 6).join(" · ")}</p>
       )}
 
-      <div className="text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5">
+      <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
         <AlertCircle className="w-3.5 h-3.5 inline mr-1" />
         Escalation path: {tree.escalationPath.level} — auto-escalate in {tree.escalationPath.autoEscalateAfterMinutes} min
       </div>
@@ -98,34 +269,28 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
             <div key={step.stepId}>
               <button
                 onClick={() => setActiveStep(activeStep === step.stepId ? null : step.stepId)}
-                className={`w-full text-left p-3 rounded-lg border transition-all ${done ? "border-emerald-500/20 bg-emerald-500/5" : failed ? "border-red-500/20 bg-red-500/5" : activeStep === step.stepId ? "border-cyan-500/30 bg-cyan-500/5" : "border-white/[0.05] bg-white/[0.02] hover:border-white/10"}`}
+                className={`w-full text-left p-3 rounded-lg border transition-all text-sm ${done ? "border-emerald-200 bg-emerald-50" : failed ? "border-red-200 bg-red-50" : activeStep === step.stepId ? "border-sky-200 bg-sky-50" : "border-slate-100 bg-white hover:border-slate-200"}`}
               >
                 <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : failed ? "bg-red-500/20 text-red-400 border border-red-500/30" : step.automated ? "bg-purple-500/20 text-purple-400 border border-purple-500/30" : "bg-white/[0.05] text-slate-500 border border-white/[0.06]"}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${done ? "bg-emerald-100 text-emerald-600 border border-emerald-200" : failed ? "bg-red-100 text-red-600 border border-red-200" : step.automated ? "bg-violet-100 text-violet-600 border border-violet-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
                     {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : failed ? <AlertCircle className="w-3.5 h-3.5" /> : step.automated ? <Zap className="w-3 h-3" /> : idx + 1}
                   </div>
-                  <span className="text-xs text-slate-300 flex-1">{step.action.length > 85 ? step.action.slice(0, 85) + "…" : step.action}</span>
-                  {step.escalateOnFail && <AlertCircle className="w-3 h-3 text-red-400/60 shrink-0" />}
-                  <ChevronRight className={`w-3.5 h-3.5 text-slate-700 transition-transform ${activeStep === step.stepId ? "rotate-90" : ""}`} />
+                  <span className="text-xs text-slate-700 flex-1">{step.action.length > 85 ? step.action.slice(0, 85) + "…" : step.action}</span>
+                  {step.escalateOnFail && <AlertCircle className="w-3 h-3 text-red-400 shrink-0" />}
+                  <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${activeStep === step.stepId ? "rotate-90" : ""}`} />
                 </div>
               </button>
               <AnimatePresence>
                 {activeStep === step.stepId && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                    <div className="ml-8 p-3 bg-black/20 border border-t-0 border-white/[0.04] rounded-b-lg space-y-3 text-xs">
-                      <p className="text-slate-400"><span className="text-slate-600">Action: </span>{step.action}</p>
-                      <p className="text-slate-400"><span className="text-slate-600">Expected: </span>{step.expectedOutcome}</p>
+                    <div className="ml-8 p-3 bg-slate-50 border border-t-0 border-slate-100 rounded-b-lg space-y-3 text-xs">
+                      <p className="text-slate-600"><span className="font-semibold text-slate-500">Action: </span>{step.action}</p>
+                      <p className="text-slate-600"><span className="font-semibold text-slate-500">Expected: </span>{step.expectedOutcome}</p>
                       <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={() => { setCompletedSteps(s => new Set([...s, step.stepId])); setActiveStep(step.fallbackStepId); }}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                        >
+                        <button onClick={() => { setCompletedSteps(s => new Set([...s, step.stepId])); setActiveStep(step.fallbackStepId); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
                           <CheckCircle2 className="w-3 h-3" /> Completed
                         </button>
-                        <button
-                          onClick={() => { setFailedSteps(s => new Set([...s, step.stepId])); setActiveStep(step.fallbackStepId || "STEP-ESC"); }}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10 transition-colors"
-                        >
+                        <button onClick={() => { setFailedSteps(s => new Set([...s, step.stepId])); setActiveStep(step.fallbackStepId || "STEP-ESC"); }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
                           <AlertCircle className="w-3 h-3" /> Failed — try next
                         </button>
                       </div>
@@ -139,19 +304,19 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
       </div>
 
       {udi.kbId && (
-        <div className="pt-3 border-t border-white/[0.04]">
+        <div className="pt-3 border-t border-slate-100">
           <p className="text-xs text-slate-500 mb-2">KB Article {udi.kbId} — was this helpful?</p>
           {feedbackSent ? (
-            <p className="text-xs text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Apphia logged your feedback — success rate updated.</p>
+            <p className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Apphia logged your feedback — success rate updated.</p>
           ) : (
             <div className="flex gap-2">
-              <button onClick={() => sendFeedback(true)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+              <button onClick={() => sendFeedback(true)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
                 <ThumbsUp className="w-3 h-3" /> Helpful
               </button>
-              <button onClick={() => sendFeedback(false)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10 transition-colors">
+              <button onClick={() => sendFeedback(false)} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
                 <ThumbsDown className="w-3 h-3" /> Not helpful
               </button>
-              <Link href={`/kb`} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-white/[0.06] bg-white/[0.02] text-slate-500 hover:text-white transition-colors ml-auto">
+              <Link href="/kb" className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded border border-slate-200 bg-white text-slate-500 hover:text-slate-700 transition-colors ml-auto">
                 <BookOpen className="w-3 h-3" /> View in KB
               </Link>
             </div>
@@ -164,15 +329,17 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
 
 export default function CaseDetail() {
   const { id } = useParams();
+  const [, setLocation] = useLocation();
   const caseId = parseInt(id || "0", 10);
   const apiBase = useApiBase();
-  
-  const { data: diagnosticCase, isLoading } = useGetCase(caseId);
+
+  const { data: diagnosticCase, isLoading, refetch } = useGetCase(caseId);
   const { mutate: updateCase } = useUpdateCase();
   const { runDiagnostic, isRunning, logs } = useSseDiagnostic(caseId);
   const logEndRef = useRef<HTMLDivElement>(null);
   const [decisionData, setDecisionData] = useState<{ udi: UDI; tree: DecisionTree } | null>(null);
   const [loadingDecision, setLoadingDecision] = useState(false);
+  const [autoMode, setAutoMode] = useState(false);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -191,61 +358,66 @@ export default function CaseDetail() {
     } catch {} finally { setLoadingDecision(false); }
   }
 
-  if (isLoading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!diagnosticCase) return <div className="p-8 text-center text-red-400">Case not found</div>;
+  function handleDeploy(withScreenShare: boolean) {
+    if (withScreenShare) {
+      setLocation("/remote-assistance");
+      return;
+    }
+    updateCase({ id: caseId, data: { status: "resolved" } }, { onSuccess: () => refetch() });
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center h-[60vh]"><div className="w-10 h-10 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!diagnosticCase) return <div className="p-8 text-center text-red-500">Case not found</div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      <Link href="/cases" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-cyan-400 transition-colors">
+    <div className="max-w-5xl mx-auto space-y-5 pb-20">
+      <Link href="/cases" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-sky-600 transition-colors">
         <ArrowLeft className="w-4 h-4 mr-1" /> Back to Cases
       </Link>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:items-start justify-between gap-5">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <span className="text-sm font-mono text-slate-600 bg-white/[0.03] px-2 py-0.5 rounded border border-white/[0.06]">#{diagnosticCase.id}</span>
-            <Badge variant={diagnosticCase.status === 'resolved' ? 'success' : 'neutral'}>
-              {diagnosticCase.status}
-            </Badge>
-            {diagnosticCase.diagnosticTier && (
-              <Badge variant="default">Tier {diagnosticCase.diagnosticTier} Analysis</Badge>
-            )}
+            <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">#{diagnosticCase.id}</span>
+            <Badge variant={diagnosticCase.status === 'resolved' ? 'success' : 'neutral'}>{diagnosticCase.status}</Badge>
+            {diagnosticCase.diagnosticTier && <Badge variant="default">Tier {diagnosticCase.diagnosticTier} Analysis</Badge>}
           </div>
-          <h1 className="text-3xl font-display font-bold text-white">{diagnosticCase.title}</h1>
-          <p className="text-slate-500 mt-2 max-w-3xl leading-relaxed">{diagnosticCase.description || "No description provided."}</p>
+          <h1 className="text-2xl font-display font-bold text-slate-900">{diagnosticCase.title}</h1>
+          <p className="text-slate-500 mt-1.5 max-w-3xl leading-relaxed text-sm">{diagnosticCase.description || "No description provided."}</p>
         </div>
 
         <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={loadDecisionTree}
-            disabled={loadingDecision}
-            className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
-          >
-            {loadingDecision ? <span className="w-4 h-4 border border-purple-400 border-t-transparent rounded-full animate-spin mr-2" /> : <Brain className="w-5 h-5 mr-2" />}
+          <Button variant="outline" size="sm" onClick={loadDecisionTree} disabled={loadingDecision} className="border-violet-200 text-violet-600 hover:bg-violet-50">
+            {loadingDecision ? <span className="w-4 h-4 border border-violet-400 border-t-transparent rounded-full animate-spin mr-2" /> : <Brain className="w-4 h-4 mr-2" />}
             Decision Engine
           </Button>
-          <Button 
-            size="lg" 
-            onClick={runDiagnostic} 
-            disabled={isRunning || diagnosticCase.status === 'resolved'}
-            className="shadow-xl shadow-cyan-500/20 neon-glow-cyan"
-          >
-            <Play className="w-5 h-5 mr-2" />
+          <Button size="sm" onClick={runDiagnostic} disabled={isRunning || diagnosticCase.status === 'resolved'} className="bg-sky-500 hover:bg-sky-400 text-white shadow-sm">
+            <Play className="w-4 h-4 mr-2" />
             {isRunning ? "Running Pipeline..." : "Run Apphia Pipeline"}
           </Button>
         </div>
       </motion.div>
 
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <AutoDeployPanel
+          resolution={diagnosticCase.resolution || null}
+          confidenceScore={diagnosticCase.confidenceScore || null}
+          selfHealable={!!(decisionData?.udi.selfHealable)}
+          autoMode={autoMode}
+          setAutoMode={setAutoMode}
+          onDeploy={handleDeploy}
+          isRunning={isRunning}
+        />
+      </motion.div>
+
       <AnimatePresence>
         {decisionData && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-            <Card className="p-6 border-purple-500/20 bg-purple-500/[0.03]">
-              <h3 className="font-display font-bold text-white flex items-center gap-2 mb-4">
-                <GitBranch className="w-5 h-5 text-purple-400" />
+            <Card className="p-5 border-violet-100 bg-violet-50/50">
+              <h3 className="font-display font-bold text-slate-900 flex items-center gap-2 mb-4">
+                <GitBranch className="w-4 h-4 text-violet-500" />
                 Apphia Decision Engine
-                <span className="ml-auto text-xs font-mono text-slate-600">{decisionData.tree.treeId}</span>
+                <span className="ml-auto text-xs font-mono text-slate-400">{decisionData.tree.treeId}</span>
               </h3>
               <DecisionTreePanel tree={decisionData.tree} udi={decisionData.udi} caseId={caseId} apiBase={apiBase} />
             </Card>
@@ -253,33 +425,28 @@ export default function CaseDetail() {
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-0 overflow-hidden h-[500px] flex flex-col relative">
-            <div className="flex items-center gap-2 p-3 bg-black/40 border-b border-white/[0.04]">
-              <Terminal className="w-4 h-4 text-slate-600" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-4">
+        <div className="lg:col-span-2 space-y-5">
+          <Card className="p-0 overflow-hidden h-[480px] flex flex-col">
+            <div className="flex items-center gap-2 p-3 bg-slate-900 border-b border-slate-800">
+              <Terminal className="w-4 h-4 text-slate-500" />
               <span className="font-semibold text-slate-500 text-xs tracking-wider font-mono">APPHIA ENGINE // PIPELINE EXECUTION</span>
-              {isRunning && <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>}
+              {isRunning && <span className="ml-auto flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.6)]" />}
             </div>
-            
             <div className="p-4 overflow-y-auto flex-1 space-y-2 custom-scrollbar bg-[#0a0a10] font-mono text-sm text-slate-400">
               {logs.length === 0 ? (
-                <div className="text-slate-700 italic h-full flex items-center justify-center">
+                <div className="text-slate-600 italic h-full flex items-center justify-center text-sm">
                   Pipeline idle. Ready for execution.
                 </div>
               ) : (
                 <AnimatePresence>
                   {logs.map((log, i) => (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -5 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      key={i} 
-                      className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'system_error' ? 'text-amber-400' : log.type === 'complete' ? 'text-emerald-400' : ''}`}
-                    >
+                    <motion.div initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} key={i}
+                      className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'system_error' ? 'text-amber-400' : log.type === 'complete' ? 'text-emerald-400' : ''}`}>
                       <span className="text-slate-700 select-none">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
                       <div className="flex-1 break-words">
-                        {log.type === 'signal' && <span className="text-cyan-400 mr-2">EXTRACT:</span>}
-                        {log.type === 'udo_path' && <span className="text-purple-400 mr-2">UDO TRAVERSAL:</span>}
+                        {log.type === 'signal' && <span className="text-sky-400 mr-2">EXTRACT:</span>}
+                        {log.type === 'udo_path' && <span className="text-violet-400 mr-2">UDO TRAVERSAL:</span>}
                         {log.type === 'system_error' && <span className="text-amber-400 mr-2">⚠ PLATFORM ERROR:</span>}
                         {log.message}
                         {log.data && (
@@ -300,12 +467,10 @@ export default function CaseDetail() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="p-5 bg-amber-50 border-amber-200">
                 <div className="flex items-start gap-3">
-                  <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <h3 className="font-display font-bold text-amber-800">Platform Error</h3>
-                    <p className="text-sm text-amber-700 mt-1">
-                      This diagnostic failed due to a platform-side error. The case has been reset and does not count against your quota. You can re-run at no additional cost.
-                    </p>
+                    <p className="text-sm text-amber-700 mt-1">This diagnostic failed due to a platform error. You can re-run at no additional cost.</p>
                     <Button size="sm" variant="outline" className="mt-3 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={runDiagnostic} disabled={isRunning}>
                       <Play className="w-4 h-4 mr-1" /> Retry Diagnostic
                     </Button>
@@ -314,24 +479,25 @@ export default function CaseDetail() {
               </Card>
             </motion.div>
           )}
+
           {(diagnosticCase.rootCause || diagnosticCase.resolution) && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-              <Card className="p-6 neon-border">
-                <h3 className="font-display font-bold text-lg text-white mb-4 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <Card className="p-5 border-emerald-100 bg-emerald-50/40">
+                <h3 className="font-display font-bold text-slate-900 flex items-center gap-2 mb-4">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   Diagnostic Results
                 </h3>
                 <div className="space-y-4">
                   {diagnosticCase.rootCause && (
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">PROBABLE ROOT CAUSE</p>
-                      <p className="text-slate-300 bg-white/[0.03] p-3 rounded-lg border border-white/[0.06]">{diagnosticCase.rootCause}</p>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Root Cause</p>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{diagnosticCase.rootCause}</p>
                     </div>
                   )}
                   {diagnosticCase.resolution && (
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">RECOMMENDED RESOLUTION</p>
-                      <p className="text-slate-300 bg-white/[0.03] p-3 rounded-lg border border-white/[0.06]">{diagnosticCase.resolution}</p>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Recommended Resolution</p>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{diagnosticCase.resolution}</p>
                     </div>
                   )}
                 </div>
@@ -340,34 +506,33 @@ export default function CaseDetail() {
           )}
         </div>
 
-        <div className="space-y-6">
-          <Card className="p-5">
-            <h3 className="font-display font-bold text-white mb-4 text-sm uppercase tracking-wider">Metadata</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between border-b border-white/[0.04] pb-2">
-                <span className="text-slate-500">Created</span>
-                <span className="font-medium text-slate-300">{format(new Date(diagnosticCase.createdAt), "MMM d, yyyy")}</span>
-              </div>
-              <div className="flex justify-between border-b border-white/[0.04] pb-2">
-                <span className="text-slate-500">Confidence</span>
-                <span className="font-bold text-cyan-400">{diagnosticCase.confidenceScore || 0}%</span>
-              </div>
-              <div className="flex justify-between pb-1">
-                <span className="text-slate-500">Status</span>
-                <span className="font-medium capitalize text-slate-300">{diagnosticCase.status.replace("_", " ")}</span>
-              </div>
+        <div className="space-y-4">
+          <Card className="p-5 bg-white border border-slate-100">
+            <h3 className="font-display font-bold text-slate-900 mb-4 text-sm uppercase tracking-wider">Case Metadata</h3>
+            <div className="space-y-2.5 text-sm">
+              {[
+                { label: "Created", value: format(new Date(diagnosticCase.createdAt), "MMM d, yyyy") },
+                { label: "Confidence", value: `${diagnosticCase.confidenceScore || 0}%`, highlight: true },
+                { label: "Status", value: diagnosticCase.status.replace("_", " ") },
+                { label: "Priority", value: diagnosticCase.priority || "medium" },
+              ].map(row => (
+                <div key={row.label} className="flex justify-between py-2 border-b border-slate-50 last:border-0">
+                  <span className="text-slate-400 text-xs">{row.label}</span>
+                  <span className={`text-xs font-semibold capitalize ${row.highlight ? "text-sky-600" : "text-slate-700"}`}>{row.value}</span>
+                </div>
+              ))}
             </div>
           </Card>
 
           {diagnosticCase.signals && (
-            <Card className="p-5 neon-border">
-              <h3 className="font-display font-bold text-cyan-400 mb-3 text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" />
+            <Card className="p-4 border-sky-100 bg-sky-50/50">
+              <h3 className="font-display font-bold text-slate-900 mb-3 text-sm flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                 Extracted Signals
               </h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {Object.entries(diagnosticCase.signals).map(([k, v]) => (
-                  <span key={k} className="px-2 py-1 bg-cyan-500/5 border border-cyan-500/10 text-cyan-400 text-xs rounded">
+                  <span key={k} className="px-2 py-0.5 bg-sky-100 border border-sky-200 text-sky-700 text-[10px] rounded font-mono">
                     {k}: {String(v)}
                   </span>
                 ))}
@@ -376,24 +541,25 @@ export default function CaseDetail() {
           )}
 
           {!decisionData && (
-            <Card className="p-5 border-dashed border-purple-500/20 bg-purple-500/[0.02]">
+            <Card className="p-4 border-dashed border-violet-200 bg-violet-50/40">
               <div className="text-center space-y-2">
-                <Brain className="w-8 h-8 text-purple-400/50 mx-auto" />
+                <Brain className="w-7 h-7 text-violet-300 mx-auto" />
                 <p className="text-xs text-slate-500">Run the Decision Engine to get a branching resolution path with escalation logic</p>
-                <button onClick={loadDecisionTree} disabled={loadingDecision} className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 mx-auto">
-                  {loadingDecision ? <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" /> : <ArrowRight className="w-3 h-3" />}
+                <button onClick={loadDecisionTree} disabled={loadingDecision} className="text-xs text-violet-500 hover:text-violet-600 transition-colors flex items-center gap-1 mx-auto font-medium">
+                  {loadingDecision ? <span className="w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin" /> : <ArrowRight className="w-3 h-3" />}
                   Generate now
                 </button>
               </div>
             </Card>
           )}
 
-          <Button 
-            variant="outline" 
-            className="w-full"
+          <Button
+            variant="outline"
+            className="w-full border-emerald-200 text-emerald-700 hover:bg-emerald-50"
             onClick={() => updateCase({ id: caseId, data: { status: "resolved" } })}
             disabled={diagnosticCase.status === 'resolved'}
           >
+            <CheckCircle2 className="w-4 h-4 mr-2" />
             Mark as Resolved
           </Button>
         </div>

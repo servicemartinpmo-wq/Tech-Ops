@@ -60,20 +60,20 @@ export default function CasesList() {
   const allStatuses = ["", "open", "draft", "in_progress", "resolved", "closed"];
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-5 max-w-6xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-white text-glow">Diagnostic Cases</h1>
-          <p className="text-slate-500 mt-1">Manage and diagnose system anomalies. Draft cases are saved but not yet triaged.</p>
+          <h1 className="text-2xl font-display font-bold text-slate-900">Diagnostic Cases</h1>
+          <p className="text-slate-400 mt-1 text-sm">System-wide review and root cause analysis. For a single issue, use <span className="text-sky-600 font-medium">Submit an Issue</span> in the sidebar.</p>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={handleBatchDiagnose} variant="secondary" disabled={isBatchRunning || !cases?.some(c => c.status === "open")}>
+        <div className="flex gap-2">
+          <Button onClick={handleBatchDiagnose} variant="secondary" disabled={isBatchRunning || !cases?.some(c => c.status === "open")} className="text-sm">
             <PlayCircle className="w-4 h-4 mr-2" />
             {isBatchRunning ? "Batching..." : "Batch Diagnose Open"}
           </Button>
-          <Button onClick={() => setIsCreating(!isCreating)}>
+          <Button onClick={() => setIsCreating(!isCreating)} className="text-sm bg-slate-900 hover:bg-slate-800 text-white">
             <Plus className="w-4 h-4 mr-2" />
-            New Case
+            New System Case
           </Button>
         </div>
       </motion.div>

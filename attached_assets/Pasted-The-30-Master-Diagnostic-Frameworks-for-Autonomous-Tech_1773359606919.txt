@@ -1,0 +1,251 @@
+The 30 Master Diagnostic Frameworks for Autonomous Tech Support
+1. Change Analysis Framework
+Most incidents are caused by recent changes.
+Rule
+If problem appears suddenly
+→ analyze recent system changes
+Sources
+deployments
+configuration updates
+dependency upgrades
+infrastructure changes
+credential rotations
+Formula
+Probability of root cause ∝ recency of change
+2. Layer Isolation Framework
+Break system by layers.
+User Layer
+Application Layer
+Service Layer
+Runtime Layer
+OS Layer
+Network Layer
+Hardware Layer
+Troubleshoot one layer at a time.
+3. Binary Isolation Framework
+Classic debugging method.
+Divide system in half
+Test one side
+Eliminate half the possibilities
+Repeat
+This rapidly narrows root causes.
+4. Input vs Output Validation
+Determine where failure occurs.
+Input correct?
+→ If yes → problem occurs inside system
+
+Input incorrect?
+→ problem occurs upstream
+5. Resource Exhaustion Model
+Many systems fail due to resource limits.
+Check:
+CPU
+Memory
+Disk
+Network bandwidth
+File descriptors
+Thread pools
+Connection pools
+6. Dependency Failure Framework
+Modern systems rely heavily on dependencies.
+Application
+  ├── Library
+  ├── Database
+  ├── External API
+  └── Runtime
+Failures propagate upward.
+7. Configuration Drift Detection
+Production environments drift over time.
+Compare:
+working environment
+vs
+failing environment
+Key checks:
+versions
+configs
+permissions
+paths
+8. Temporal Correlation Analysis
+Correlate failures with time-based events.
+scheduled jobs
+cron tasks
+log rotations
+certificate expiration
+backup processes
+9. Observability Triad
+Three core signals.
+Logs
+Metrics
+Traces
+Diagnostic logic:
+Metrics detect anomaly
+Logs explain event
+Traces show system path
+10. Failure Domain Mapping
+Identify where failures propagate.
+Example:
+Database failure
+→ API failure
+→ UI failure
+Root cause often lies downstream.
+11. Reproducibility Framework
+Reproduce the issue.
+Can it be reproduced?
+  Yes → deterministic issue
+  No → environment or timing issue
+12. Isolation Environment Framework
+Test system outside production.
+local
+staging
+sandbox
+container
+This isolates environment issues.
+13. Network Path Analysis
+Network failures are common.
+Check path:
+client
+router
+load balancer
+gateway
+service
+database
+14. Permission Chain Analysis
+Permissions stack across layers.
+User
+Service account
+Application role
+Database role
+File permissions
+A failure anywhere causes denial.
+15. State vs Stateless Analysis
+Determine system type.
+Stateless system
+→ easier to restart
+
+Stateful system
+→ must preserve data integrity
+16. Fault Injection Thinking
+Simulate failure.
+Ask:
+What happens if this component fails?
+Used heavily in chaos engineering.
+17. Service Health Hierarchy
+Service health depends on components.
+system health =
+min(component health)
+Weakest component defines reliability.
+18. Signal vs Noise Filtering
+Many alerts are false positives.
+Framework:
+Signal strength
++
+frequency
++
+severity
+19. Latency Budget Analysis
+Break response time into components.
+Example:
+client latency
+network latency
+service processing
+database query
+response serialization
+20. Error Budget Model
+From Site Reliability Engineering.
+Error Budget =
+allowed downtime
+Example:
+99.9% uptime
+→ ~43 minutes downtime/month
+21. Retry Amplification Detection
+Retries can worsen failures.
+Example:
+Service fails
+Clients retry
+Traffic spikes
+System collapses
+22. Cache Consistency Analysis
+Cache introduces new failure modes.
+stale cache
+cache miss
+cache stampede
+invalidation failure
+23. Data Integrity Validation
+Ensure data correctness.
+Check:
+schema mismatch
+serialization errors
+corrupt data
+migration failures
+24. Concurrency Conflict Framework
+Multithreaded systems introduce issues.
+race conditions
+deadlocks
+thread starvation
+lock contention
+25. Deployment Pipeline Analysis
+Many failures originate in CI/CD.
+Check:
+build
+test
+artifact creation
+deployment scripts
+environment variables
+26. External Service Reliability
+APIs fail frequently.
+Check:
+rate limits
+timeouts
+auth tokens
+API version changes
+27. Security Constraint Analysis
+Security policies break systems.
+Examples:
+firewalls
+IAM roles
+certificate expiration
+token validation
+28. Backpressure Analysis
+Systems overload when traffic spikes.
+Check:
+queue saturation
+thread pool exhaustion
+connection limits
+29. System Complexity Reduction
+Sometimes the fastest solution is simplification.
+Ask:
+Can this component be temporarily removed?
+30. Root Cause Confirmation Loop
+Final verification step.
+Hypothesis
+→ apply fix
+→ confirm resolution
+→ monitor system
+How Elite Tech Support Systems Use These
+The reasoning flow looks like this:
+User Issue
+↓
+Error Classification
+↓
+Framework Selection
+↓
+Diagnostics
+↓
+Root Cause Hypothesis
+↓
+Fix Recommendation
+↓
+Verification
+If Your App Uses These
+Your AI will operate similarly to:
+internal Microsoft support systems
+AWS support automation
+Google SRE diagnostic workflows
+This moves it from basic chatbot → engineering assistant.
+Critical Missing Piece (Most AI Systems Don't Have This)
+Even with everything above, one architecture layer determines whether the AI feels truly intelligent.
+It is called:
+Diagnostic Reasoning Graphs (DRG).
+This is what allows an AI to combine multiple frameworks dynamically instead of running them one at a time.
+If you want, I can show you:
+The DRG architecture used by next-generation autonomous support systems.
