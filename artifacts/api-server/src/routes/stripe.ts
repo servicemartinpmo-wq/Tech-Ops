@@ -1,15 +1,17 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { storage } from "../storage";
 import { stripeService } from "../stripeService";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
-router.get("/stripe/subscription", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/stripe/subscription", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const user = await storage.getUser(req.user.id);
+  const user = await storage.getUser(authReq.user.id);
   if (!user?.stripeSubscriptionId) {
     res.json({ subscription: null, tier: user?.subscriptionTier || "free" });
     return;
@@ -19,17 +21,18 @@ router.get("/stripe/subscription", async (req: any, res): Promise<void> => {
   res.json({ subscription, tier: user?.subscriptionTier || "free" });
 });
 
-router.post("/stripe/checkout", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/stripe/checkout", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const user = await storage.getUser(req.user.id);
+  const user = await storage.getUser(authReq.user.id);
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const { priceId } = req.body;
+  const { priceId } = req.body as { priceId: string };
 
   let customerId = user.stripeCustomerId;
   if (!customerId) {
@@ -49,27 +52,41 @@ router.post("/stripe/checkout", async (req: any, res): Promise<void> => {
   res.json({ url: session.url });
 });
 
-router.get("/stripe/products", async (_req, res): Promise<void> => {
+router.get("/stripe/products", async (_req, res: Response): Promise<void> => {
   const rows = await storage.listProductsWithPrices();
 
-  const productsMap = new Map();
-  for (const row of rows as any[]) {
-    if (!productsMap.has(row.product_id)) {
-      productsMap.set(row.product_id, {
-        id: row.product_id,
-        name: row.product_name,
-        description: row.product_description,
+  const productsMap = new Map<string, {
+    id: string;
+    name: string;
+    description: string;
+    metadata: unknown;
+    prices: Array<{
+      id: string;
+      unitAmount: number;
+      currency: string;
+      recurring: unknown;
+      active: boolean;
+    }>;
+  }>();
+
+  for (const row of rows as Array<Record<string, unknown>>) {
+    const productId = row.product_id as string;
+    if (!productsMap.has(productId)) {
+      productsMap.set(productId, {
+        id: productId,
+        name: row.product_name as string,
+        description: row.product_description as string,
         metadata: row.product_metadata,
         prices: [],
       });
     }
     if (row.price_id) {
-      productsMap.get(row.product_id).prices.push({
-        id: row.price_id,
-        unitAmount: row.unit_amount,
-        currency: row.currency,
+      productsMap.get(productId)!.prices.push({
+        id: row.price_id as string,
+        unitAmount: row.unit_amount as number,
+        currency: row.currency as string,
         recurring: row.recurring,
-        active: row.price_active,
+        active: row.price_active as boolean,
       });
     }
   }
@@ -77,12 +94,13 @@ router.get("/stripe/products", async (_req, res): Promise<void> => {
   res.json({ data: Array.from(productsMap.values()) });
 });
 
-router.post("/stripe/portal", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/stripe/portal", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
-  const user = await storage.getUser(req.user.id);
+  const user = await storage.getUser(authReq.user.id);
   if (!user?.stripeCustomerId) {
     res.status(400).json({ error: "No billing account" });
     return;

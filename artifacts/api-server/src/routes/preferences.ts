@@ -1,7 +1,8 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable, preferencesQuizTable } from "@workspace/db";
 import { SubmitPreferencesQuizBody } from "@workspace/api-zod";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
@@ -48,8 +49,9 @@ const QUIZ_QUESTIONS = [
   },
 ];
 
-router.get("/preferences/quiz", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/preferences/quiz", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -57,8 +59,9 @@ router.get("/preferences/quiz", async (req: any, res): Promise<void> => {
   res.json({ questions: QUIZ_QUESTIONS });
 });
 
-router.post("/preferences/quiz", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/preferences/quiz", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -80,7 +83,7 @@ router.post("/preferences/quiz", async (req: any, res): Promise<void> => {
   };
 
   await db.insert(preferencesQuizTable).values({
-    userId: req.user.id,
+    userId: authReq.user.id,
     answers: parsed.data.answers,
     profile,
   });
@@ -91,13 +94,14 @@ router.post("/preferences/quiz", async (req: any, res): Promise<void> => {
       preferencesQuizCompleted: "true",
       preferencesProfile: JSON.stringify(profile),
     })
-    .where(eq(usersTable.id, req.user.id));
+    .where(eq(usersTable.id, authReq.user.id));
 
   res.json(profile);
 });
 
-router.get("/preferences/profile", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/preferences/profile", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -105,7 +109,7 @@ router.get("/preferences/profile", async (req: any, res): Promise<void> => {
   const [user] = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.id, req.user.id));
+    .where(eq(usersTable.id, authReq.user.id));
 
   if (!user?.preferencesProfile) {
     res.json({

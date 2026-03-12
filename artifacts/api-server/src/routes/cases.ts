@@ -1,13 +1,16 @@
-import { Router, type IRouter } from "express";
-import { eq, desc, and, sql, count } from "drizzle-orm";
+import { Router, type IRouter, type Response } from "express";
+import { eq, desc, and } from "drizzle-orm";
 import { db, casesTable } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import type { AuthenticatedRequest } from "../types";
+import type { Case } from "@workspace/db";
 
 const router: IRouter = Router();
 
-router.get("/cases", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/cases", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -16,7 +19,7 @@ router.get("/cases", async (req: any, res): Promise<void> => {
   const limit = parseInt(req.query.limit as string) || 20;
   const offset = parseInt(req.query.offset as string) || 0;
 
-  let conditions = eq(casesTable.userId, req.user.id);
+  const conditions = eq(casesTable.userId, authReq.user.id);
 
   const query = db
     .select()
@@ -30,8 +33,9 @@ router.get("/cases", async (req: any, res): Promise<void> => {
   res.json(cases);
 });
 
-router.post("/cases", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/cases", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -45,7 +49,7 @@ router.post("/cases", async (req: any, res): Promise<void> => {
   const [newCase] = await db
     .insert(casesTable)
     .values({
-      userId: req.user.id,
+      userId: authReq.user.id,
       title: parsed.data.title,
       description: parsed.data.description,
       priority: parsed.data.priority || "medium",
@@ -55,8 +59,9 @@ router.post("/cases", async (req: any, res): Promise<void> => {
   res.status(201).json(newCase);
 });
 
-router.get("/cases/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/cases/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -67,7 +72,7 @@ router.get("/cases/:id", async (req: any, res): Promise<void> => {
   const [caseItem] = await db
     .select()
     .from(casesTable)
-    .where(and(eq(casesTable.id, id), eq(casesTable.userId, req.user.id)));
+    .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id)));
 
   if (!caseItem) {
     res.status(404).json({ error: "Case not found" });
@@ -77,8 +82,9 @@ router.get("/cases/:id", async (req: any, res): Promise<void> => {
   res.json(caseItem);
 });
 
-router.patch("/cases/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -92,7 +98,7 @@ router.patch("/cases/:id", async (req: any, res): Promise<void> => {
     return;
   }
 
-  const updateData: any = { ...parsed.data };
+  const updateData: Partial<Case> = { ...parsed.data };
   if (parsed.data.status === "resolved") {
     updateData.resolvedAt = new Date();
   }
@@ -100,7 +106,7 @@ router.patch("/cases/:id", async (req: any, res): Promise<void> => {
   const [updated] = await db
     .update(casesTable)
     .set(updateData)
-    .where(and(eq(casesTable.id, id), eq(casesTable.userId, req.user.id)))
+    .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id)))
     .returning();
 
   if (!updated) {
@@ -111,8 +117,9 @@ router.patch("/cases/:id", async (req: any, res): Promise<void> => {
   res.json(updated);
 });
 
-router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -123,7 +130,7 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
   const [caseItem] = await db
     .select()
     .from(casesTable)
-    .where(and(eq(casesTable.id, id), eq(casesTable.userId, req.user.id)));
+    .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id)));
 
   if (!caseItem) {
     res.status(404).json({ error: "Case not found" });
@@ -139,7 +146,7 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
     .set({ status: "in_progress" })
     .where(eq(casesTable.id, id));
 
-  const sendEvent = (data: any) => {
+  const sendEvent = (data: Record<string, unknown>) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
@@ -150,7 +157,7 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
       const tierPrompt = getTierPrompt(tier, caseItem);
 
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o",
         max_completion_tokens: 8192,
         messages: [
           {
@@ -179,7 +186,7 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
     }
 
     const finalStream = await openai.chat.completions.create({
-      model: "gpt-5.2",
+      model: "gpt-4o",
       max_completion_tokens: 8192,
       messages: [
         {
@@ -194,7 +201,7 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
       stream: false,
     });
 
-    let summary: any = {};
+    let summary: { rootCause?: string; confidenceScore?: number; resolution?: string; signals?: string[] } = {};
     try {
       const responseText = finalStream.choices[0]?.message?.content || "{}";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -216,16 +223,18 @@ router.post("/cases/:id/diagnose", async (req: any, res): Promise<void> => {
       .where(eq(casesTable.id, id));
 
     sendEvent({ type: "complete", summary });
-  } catch (error: any) {
-    sendEvent({ type: "error", message: error.message });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Diagnostic pipeline error";
+    sendEvent({ type: "error", message });
   }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();
 });
 
-router.post("/cases/batch", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/cases/batch", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -242,18 +251,18 @@ router.post("/cases/batch", async (req: any, res): Promise<void> => {
 
   const { caseIds } = parsed.data;
 
-  const sendEvent = (data: any) => {
+  const sendEvent = (data: Record<string, unknown>) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
   sendEvent({ type: "batch_start", total: caseIds.length });
 
-  const results = await Promise.allSettled(
+  await Promise.allSettled(
     caseIds.map(async (caseId: number, index: number) => {
       const [c] = await db
         .select()
         .from(casesTable)
-        .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, req.user.id)));
+        .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, authReq.user.id)));
 
       if (!c) {
         sendEvent({ type: "case_error", caseId, error: "Not found" });
@@ -263,7 +272,7 @@ router.post("/cases/batch", async (req: any, res): Promise<void> => {
       sendEvent({ type: "case_start", caseId, index });
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o",
         max_completion_tokens: 8192,
         messages: [
           { role: "system", content: "You are Apphia. Provide a quick diagnostic summary with rootCause, confidenceScore (0-100), and resolution. Respond as JSON." },
@@ -271,7 +280,7 @@ router.post("/cases/batch", async (req: any, res): Promise<void> => {
         ],
       });
 
-      let result: any = {};
+      let result: { rootCause?: string; confidenceScore?: number; resolution?: string } = {};
       try {
         const text = response.choices[0]?.message?.content || "{}";
         const match = text.match(/\{[\s\S]*\}/);
@@ -297,7 +306,7 @@ router.post("/cases/batch", async (req: any, res): Promise<void> => {
   res.end();
 });
 
-function getTierPrompt(tier: number, caseItem: any): string {
+function getTierPrompt(tier: number, caseItem: Case): string {
   const base = `Case: "${caseItem.title}"\nDescription: ${caseItem.description || "No description provided"}\n\n`;
 
   switch (tier) {

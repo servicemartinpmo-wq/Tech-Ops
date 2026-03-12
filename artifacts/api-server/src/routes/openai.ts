@@ -1,13 +1,15 @@
-import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
+import { Router, type IRouter, type Response } from "express";
+import { eq, desc, and } from "drizzle-orm";
 import { db, conversations as conversationsTable, messages as messagesTable } from "@workspace/db";
 import { CreateOpenaiConversationBody, SendOpenaiMessageBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
-router.get("/openai/conversations", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/openai/conversations", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -15,13 +17,15 @@ router.get("/openai/conversations", async (req: any, res): Promise<void> => {
   const conversations = await db
     .select()
     .from(conversationsTable)
+    .where(eq(conversationsTable.userId, authReq.user.id))
     .orderBy(desc(conversationsTable.createdAt));
 
   res.json(conversations);
 });
 
-router.post("/openai/conversations", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/openai/conversations", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -34,14 +38,15 @@ router.post("/openai/conversations", async (req: any, res): Promise<void> => {
 
   const [conversation] = await db
     .insert(conversationsTable)
-    .values({ title: parsed.data.title })
+    .values({ title: parsed.data.title, userId: authReq.user.id })
     .returning();
 
   res.status(201).json(conversation);
 });
 
-router.get("/openai/conversations/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -52,7 +57,7 @@ router.get("/openai/conversations/:id", async (req: any, res): Promise<void> => 
   const [conversation] = await db
     .select()
     .from(conversationsTable)
-    .where(eq(conversationsTable.id, id));
+    .where(and(eq(conversationsTable.id, id), eq(conversationsTable.userId, authReq.user.id)));
 
   if (!conversation) {
     res.status(404).json({ error: "Conversation not found" });
@@ -68,8 +73,9 @@ router.get("/openai/conversations/:id", async (req: any, res): Promise<void> => 
   res.json({ ...conversation, messages: msgs });
 });
 
-router.delete("/openai/conversations/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.delete("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -79,7 +85,7 @@ router.delete("/openai/conversations/:id", async (req: any, res): Promise<void> 
 
   const [deleted] = await db
     .delete(conversationsTable)
-    .where(eq(conversationsTable.id, id))
+    .where(and(eq(conversationsTable.id, id), eq(conversationsTable.userId, authReq.user.id)))
     .returning();
 
   if (!deleted) {
@@ -90,14 +96,25 @@ router.delete("/openai/conversations/:id", async (req: any, res): Promise<void> 
   res.sendStatus(204);
 });
 
-router.get("/openai/conversations/:id/messages", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+
+  const [conversation] = await db
+    .select()
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, id), eq(conversationsTable.userId, authReq.user.id)));
+
+  if (!conversation) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
 
   const msgs = await db
     .select()
@@ -108,14 +125,25 @@ router.get("/openai/conversations/:id/messages", async (req: any, res): Promise<
   res.json(msgs);
 });
 
-router.post("/openai/conversations/:id/messages", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
+
+  const [conversation] = await db
+    .select()
+    .from(conversationsTable)
+    .where(and(eq(conversationsTable.id, id), eq(conversationsTable.userId, authReq.user.id)));
+
+  if (!conversation) {
+    res.status(404).json({ error: "Conversation not found" });
+    return;
+  }
 
   const parsed = SendOpenaiMessageBody.safeParse(req.body);
   if (!parsed.success) {
@@ -152,26 +180,31 @@ router.post("/openai/conversations/:id/messages", async (req: any, res): Promise
 
   let fullResponse = "";
 
-  const stream = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
-    messages: chatMessages,
-    stream: true,
-  });
+  try {
+    const stream = await openai.chat.completions.create({
+      model: "gpt-4o",
+      max_completion_tokens: 8192,
+      messages: chatMessages,
+      stream: true,
+    });
 
-  for await (const chunk of stream) {
-    const content = chunk.choices[0]?.delta?.content;
-    if (content) {
-      fullResponse += content;
-      res.write(`data: ${JSON.stringify({ content })}\n\n`);
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        fullResponse += content;
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
     }
-  }
 
-  await db.insert(messagesTable).values({
-    conversationId: id,
-    role: "assistant",
-    content: fullResponse,
-  });
+    await db.insert(messagesTable).values({
+      conversationId: id,
+      role: "assistant",
+      content: fullResponse,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+  }
 
   res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
   res.end();

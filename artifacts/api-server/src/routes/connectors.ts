@@ -1,6 +1,7 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, connectorHealthTable } from "@workspace/db";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
@@ -13,8 +14,9 @@ const DEFAULT_CONNECTORS = [
   { name: "monitoring", label: "Monitoring Stack" },
 ];
 
-router.get("/connectors/health", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/connectors/health", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -22,7 +24,7 @@ router.get("/connectors/health", async (req: any, res): Promise<void> => {
   const existing = await db
     .select()
     .from(connectorHealthTable)
-    .where(eq(connectorHealthTable.userId, req.user.id))
+    .where(eq(connectorHealthTable.userId, authReq.user.id))
     .orderBy(desc(connectorHealthTable.lastChecked));
 
   const existingNames = new Set(existing.map(e => e.connectorName));
@@ -32,7 +34,7 @@ router.get("/connectors/health", async (req: any, res): Promise<void> => {
     if (!existingNames.has(connector.name)) {
       results.push({
         id: 0,
-        userId: req.user.id,
+        userId: authReq.user.id,
         connectorName: connector.name,
         status: "unknown",
         lastChecked: new Date(),
@@ -46,8 +48,9 @@ router.get("/connectors/health", async (req: any, res): Promise<void> => {
   res.json(results);
 });
 
-router.post("/connectors/health/:name/poll", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/connectors/health/:name/poll", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -64,7 +67,7 @@ router.post("/connectors/health/:name/poll", async (req: any, res): Promise<void
     .from(connectorHealthTable)
     .where(
       and(
-        eq(connectorHealthTable.userId, req.user.id),
+        eq(connectorHealthTable.userId, authReq.user.id),
         eq(connectorHealthTable.connectorName, connectorName)
       )
     );
@@ -85,7 +88,7 @@ router.post("/connectors/health/:name/poll", async (req: any, res): Promise<void
     [result] = await db
       .insert(connectorHealthTable)
       .values({
-        userId: req.user.id,
+        userId: authReq.user.id,
         connectorName,
         status,
         lastChecked: new Date(),

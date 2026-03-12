@@ -1,12 +1,14 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, automationRulesTable } from "@workspace/db";
 import { CreateAutomationRuleBody, UpdateAutomationRuleBody } from "@workspace/api-zod";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
-router.get("/automation/rules", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/automation/rules", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -14,13 +16,14 @@ router.get("/automation/rules", async (req: any, res): Promise<void> => {
   const rules = await db
     .select()
     .from(automationRulesTable)
-    .where(eq(automationRulesTable.userId, req.user.id));
+    .where(eq(automationRulesTable.userId, authReq.user.id));
 
   res.json(rules);
 });
 
-router.post("/automation/rules", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.post("/automation/rules", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -34,7 +37,7 @@ router.post("/automation/rules", async (req: any, res): Promise<void> => {
   const [rule] = await db
     .insert(automationRulesTable)
     .values({
-      userId: req.user.id,
+      userId: authReq.user.id,
       name: parsed.data.name,
       description: parsed.data.description,
       trigger: parsed.data.trigger,
@@ -46,8 +49,9 @@ router.post("/automation/rules", async (req: any, res): Promise<void> => {
   res.status(201).json(rule);
 });
 
-router.patch("/automation/rules/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.patch("/automation/rules/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -64,7 +68,7 @@ router.patch("/automation/rules/:id", async (req: any, res): Promise<void> => {
   const [updated] = await db
     .update(automationRulesTable)
     .set(parsed.data)
-    .where(and(eq(automationRulesTable.id, id), eq(automationRulesTable.userId, req.user.id)))
+    .where(and(eq(automationRulesTable.id, id), eq(automationRulesTable.userId, authReq.user.id)))
     .returning();
 
   if (!updated) {
@@ -75,8 +79,9 @@ router.patch("/automation/rules/:id", async (req: any, res): Promise<void> => {
   res.json(updated);
 });
 
-router.delete("/automation/rules/:id", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.delete("/automation/rules/:id", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -86,7 +91,7 @@ router.delete("/automation/rules/:id", async (req: any, res): Promise<void> => {
 
   const [deleted] = await db
     .delete(automationRulesTable)
-    .where(and(eq(automationRulesTable.id, id), eq(automationRulesTable.userId, req.user.id)))
+    .where(and(eq(automationRulesTable.id, id), eq(automationRulesTable.userId, authReq.user.id)))
     .returning();
 
   if (!deleted) {

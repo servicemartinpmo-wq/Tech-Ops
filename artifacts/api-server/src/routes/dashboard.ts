@@ -1,16 +1,18 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { eq, sql, desc, and, count } from "drizzle-orm";
 import { db, casesTable } from "@workspace/db";
+import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
-router.get("/dashboard/stats", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/dashboard/stats", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
-  const userId = req.user.id;
+  const userId = authReq.user.id;
 
   const [totalResult] = await db
     .select({ count: count() })
@@ -33,8 +35,9 @@ router.get("/dashboard/stats", async (req: any, res): Promise<void> => {
     WHERE user_id = ${userId} AND resolved_at IS NOT NULL
   `);
 
-  const avgTime = avgTimeResult.rows[0]?.avg_time
-    ? Math.round(Number(avgTimeResult.rows[0].avg_time) / 3600)
+  const avgTimeRow = avgTimeResult.rows[0] as { avg_time: string | null } | undefined;
+  const avgTime = avgTimeRow?.avg_time
+    ? Math.round(Number(avgTimeRow.avg_time) / 3600)
     : null;
 
   const { storage: storageModule } = await import("../storage");
@@ -50,8 +53,9 @@ router.get("/dashboard/stats", async (req: any, res): Promise<void> => {
   });
 });
 
-router.get("/dashboard/activity", async (req: any, res): Promise<void> => {
-  if (!req.isAuthenticated()) {
+router.get("/dashboard/activity", async (req, res: Response): Promise<void> => {
+  const authReq = req as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -61,11 +65,11 @@ router.get("/dashboard/activity", async (req: any, res): Promise<void> => {
   const recentCases = await db
     .select()
     .from(casesTable)
-    .where(eq(casesTable.userId, req.user.id))
+    .where(eq(casesTable.userId, authReq.user.id))
     .orderBy(desc(casesTable.updatedAt))
     .limit(limit);
 
-  const activity = recentCases.map((c, i) => ({
+  const activity = recentCases.map((c) => ({
     id: c.id,
     type: c.status === "resolved" ? "case_resolved" as const : "case_created" as const,
     message: c.status === "resolved"
