@@ -19,6 +19,7 @@ export const usersTable = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  role: text("role").default("owner"),
   subscriptionTier: text("subscription_tier").default("free"),
   preferencesQuizCompleted: text("preferences_quiz_completed").default("false"),
   preferencesProfile: text("preferences_profile"),

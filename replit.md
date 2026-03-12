@@ -28,12 +28,13 @@ Full-stack autonomous technology operations platform powered by the **Apphia Eng
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server (port 8080)
-│   │   ├── src/routes/     # All API routes (cases, stripe, dashboard, connectors, automation, preferences, openai)
-│   │   ├── src/storage.ts  # Data access layer (Stripe schema queries + user management)
+│   │   ├── src/routes/     # cases, stripe, dashboard, connectors, automation, preferences, openai, batches, alerts
+│   │   ├── src/middleware/  # tierGating.ts (RBAC + feature gating by subscription tier)
+│   │   ├── src/storage.ts  # Data access layer
 │   │   ├── src/stripeClient.ts  # Stripe SDK initialization
-│   │   └── src/stripeService.ts # Stripe business logic
+│   │   └── src/types.ts    # AuthenticatedRequest interface
 │   └── techops/            # React + Vite frontend
-│       ├── src/pages/      # Landing, Dashboard, Cases, Apphia Chat, Billing, Connectors, Automation, Preferences
+│       ├── src/pages/      # 13 pages: Landing, Dashboard, Submit Issue, Cases, Resolved Cases, Batch Diagnostics, Apphia Chat, Voice Companion, Connectors, Automation, Alerts, Preferences, Settings, Billing
 │       ├── src/components/ # Layout, UI components (shadcn)
 │       └── src/hooks/      # SSE chat, SSE diagnostics, mobile, toast hooks
 ├── lib/
@@ -41,7 +42,7 @@ artifacts-monorepo/
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
-│   │   └── src/schema/     # auth.ts (users+sessions), cases.ts, conversations.ts, messages.ts
+│   │   └── src/schema/     # auth.ts, cases.ts, conversations.ts, messages.ts, batches.ts
 │   └── integrations/       # OpenAI integration
 ├── scripts/
 │   └── src/seed-products.ts # Stripe product seeding script
@@ -52,31 +53,46 @@ artifacts-monorepo/
 
 ## Key Features
 
-1. **Apphia Diagnostic Pipeline** (Tier 1-5): UDO traversal, signal extraction, probabilistic root cause ranking via SSE streaming
-2. **Stripe Subscription Billing**: 4 tiers with Checkout + Customer Portal, webhook sync via stripe-replit-sync
-3. **Replit Auth**: OpenID Connect PKCE authentication
-4. **Apphia Knowledge Engine Chat**: Conversational interface with SSE streaming (OpenAI-powered)
-5. **Preferences Quiz**: Myers-Briggs-style calibration for Apphia's communication style
-6. **Connector Health Monitoring**: Live polling of integrated system health
-7. **Automation Center**: Trigger-action rules with governance/approval workflows
-8. **Batch Case Execution**: Parallel diagnostic processing
+1. **Apphia Diagnostic Pipeline** (7-stage): Classification, typed signal extraction, UDO graph traversal, probabilistic root cause ranking, confidence gating, guardrails/cost gate, resolution synthesis with self-assessment — all via SSE streaming
+2. **Batch Diagnostics**: Persistent batch entities with tier-based concurrency limits (free=1, pro=5, business=20, enterprise=unlimited), per-case pause/cancel, cross-case pattern detection
+3. **Stripe Subscription Billing**: 4 tiers with Checkout + Customer Portal, webhook sync via stripe-replit-sync
+4. **Role-Based Access Control**: owner/admin/viewer roles with feature gating per subscription tier
+5. **Replit Auth**: OpenID Connect PKCE authentication
+6. **Apphia Knowledge Engine Chat**: Conversational interface with SSE streaming (OpenAI-powered)
+7. **Voice Companion**: Push-to-talk voice interface for hands-free diagnostic guidance
+8. **Preferences Quiz**: Myers-Briggs-style calibration for Apphia's communication style
+9. **Connector Health Monitoring**: Live polling of integrated system health
+10. **Automation Center**: Trigger-action rules with governance/approval workflows
+11. **System Alerts**: Severity-based alerts with acknowledgment workflow
+12. **Settings**: Profile, security/access control, notification preferences, team management
 
 ## Database Schema
 
-- `users` - Auth + subscription info (stripe_customer_id, subscription_tier, preferences)
+- `users` - Auth + subscription + role (owner/admin/viewer) + preferences
 - `sessions` - Replit Auth sessions
 - `cases` - Diagnostic cases with tier/severity/status tracking
-- `conversations` - Apphia chat sessions
+- `conversations` - Apphia chat sessions (user-scoped)
 - `messages` - Chat messages (user/assistant roles)
-- `stripe.*` - Synced Stripe data (products, prices, subscriptions, customers) via stripe-replit-sync
+- `batches` - Batch diagnostic jobs with concurrency limits
+- `batch_cases` - Individual cases within a batch
+- `diagnostic_attempts` - Per-tier diagnostic attempt records with signals, UDO graph, root causes
+- `system_alerts` - System notifications with severity and acknowledgment
+- `audit_log` - Audit trail of user actions
+- `stripe.*` - Synced Stripe data (products, prices, subscriptions, customers)
 
 ## API Routes (mounted at /api)
 
 - `GET /api/health` - Health check
 - `POST /api/auth/*` - Replit Auth endpoints
 - `GET/POST /api/cases` - Diagnostic cases CRUD
-- `POST /api/cases/:id/diagnose` - Run Apphia diagnostic (SSE)
-- `POST /api/cases/batch` - Batch diagnostics
+- `PATCH /api/cases/:id` - Update case
+- `POST /api/cases/:id/diagnose` - Run Apphia diagnostic (SSE, 7-stage pipeline)
+- `POST /api/cases/batch` - Quick batch diagnostics (SSE)
+- `GET/POST /api/batches` - Batch CRUD with tier-based concurrency
+- `GET /api/batches/:id` - Batch detail with per-case status
+- `POST /api/batches/:id/cancel` - Cancel running batch
+- `GET /api/alerts` - List system alerts
+- `POST /api/alerts/:id/acknowledge` - Acknowledge alert
 - `GET /api/dashboard/stats` - Dashboard statistics
 - `GET /api/dashboard/activity` - Recent activity feed
 - `GET/POST /api/connectors` - Connector health management
@@ -93,6 +109,16 @@ artifacts-monorepo/
 - `GET /api/openai/conversations` - List conversations
 - `POST /api/openai/conversations/:id/messages` - Send message (SSE)
 - `GET /api/openai/conversations/:id/messages` - Get messages
+
+## Tier Gating
+
+| Feature | Free | Individual | Professional | Business | Enterprise |
+|---------|------|-----------|-------------|----------|-----------|
+| Max Cases | 3 | 10 | 50 | 200 | Unlimited |
+| Batch Concurrency | 1 | 1 | 5 | 20 | Unlimited |
+| Diagnostics | Basic | Basic | Advanced | Full | Full |
+| Connectors | - | Single | Multi | Monitoring | Custom |
+| Automation | - | - | - | Yes | Yes |
 
 ## Environment Variables
 

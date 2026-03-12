@@ -10,19 +10,31 @@ import {
   Activity, 
   Cpu,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  PlusCircle,
+  Layers,
+  Bell,
+  CheckCircle2,
+  Mic,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/cases/submit", label: "Submit Issue", icon: PlusCircle },
   { href: "/cases", label: "Diagnostic Cases", icon: Briefcase },
+  { href: "/cases/resolved", label: "Resolved Cases", icon: CheckCircle2 },
+  { href: "/batches", label: "Batch Diagnostics", icon: Layers },
   { href: "/apphia", label: "Apphia Engine", icon: MessageSquareText },
+  { href: "/voice", label: "Voice Companion", icon: Mic },
   { href: "/connectors", label: "Connector Health", icon: Activity },
   { href: "/automation", label: "Automation Center", icon: Cpu },
+  { href: "/alerts", label: "System Alerts", icon: Bell },
   { href: "/preferences", label: "Preferences", icon: Settings2 },
   { href: "/billing", label: "Subscription", icon: CreditCard },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -63,7 +75,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto pb-4 custom-scrollbar">
           {navItems.map((item) => {
-            const isActive = location.startsWith(item.href);
+            const isActive = location === item.href || (item.href !== "/cases" && item.href !== "/cases/submit" && item.href !== "/cases/resolved" && location.startsWith(item.href));
             return (
               <Link 
                 key={item.href} 

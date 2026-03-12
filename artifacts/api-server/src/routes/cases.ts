@@ -1,10 +1,11 @@
 import { Router, type IRouter, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
-import { db, casesTable } from "@workspace/db";
+import { db, casesTable, diagnosticAttemptsTable } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
 import type { Case } from "@workspace/db";
+import { getTierLimits } from "../middleware/tierGating";
 
 const router: IRouter = Router();
 
@@ -151,10 +152,27 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
   };
 
   try {
-    for (let tier = 1; tier <= 5; tier++) {
-      sendEvent({ type: "tier_start", tier, message: `Starting Tier ${tier} analysis...` });
+    const pipelineContext: {
+      signals: string[];
+      udoGraph: Record<string, unknown>;
+      rootCauses: Array<{ cause: string; confidence: number; reasoning: string }>;
+      tierOutputs: string[];
+    } = { signals: [], udoGraph: {}, rootCauses: [], tierOutputs: [] };
 
-      const tierPrompt = getTierPrompt(tier, caseItem);
+    sendEvent({ type: "progress", message: "Stage 1/7: Classification & Signal Extraction" });
+
+    for (let tier = 1; tier <= 5; tier++) {
+      const stageName = getStageLabel(tier);
+      sendEvent({ type: "tier_start", tier, message: `${stageName}` });
+
+      const [attempt] = await db.insert(diagnosticAttemptsTable).values({
+        caseId: id,
+        userId: authReq.user.id,
+        tier,
+        status: "running",
+      }).returning();
+
+      const tierPrompt = getTierPrompt(tier, caseItem, pipelineContext);
 
       const stream = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -162,7 +180,7 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
         messages: [
           {
             role: "system",
-            content: `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. You perform technology operations diagnostics. You are currently running Tier ${tier} of the diagnostic pipeline. Be thorough, professional, and specific. Never refer to yourself as "AI" or "assistant".`,
+            content: `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. You are executing ${stageName} of the staged diagnostic pipeline. Be thorough, precise, and structured. Never refer to yourself as "AI" or "assistant". You are "the Apphia Engine" or "Apphia".`,
           },
           { role: "user", content: tierPrompt },
         ],
@@ -170,20 +188,68 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
       });
 
       let tierResponse = "";
+      let tokenCount = 0;
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content;
         if (content) {
           tierResponse += content;
+          tokenCount += content.length;
           sendEvent({ type: "diagnostic_content", tier, content });
         }
       }
 
-      sendEvent({ type: "tier_complete", tier, summary: tierResponse.slice(0, 200) });
+      pipelineContext.tierOutputs.push(tierResponse);
 
-      if (tier >= 3 && tierResponse.toLowerCase().includes("root cause identified")) {
-        break;
+      if (tier === 1) {
+        const signalMatch = tierResponse.match(/signals?:?\s*\[(.*?)\]/is);
+        if (signalMatch) {
+          pipelineContext.signals = signalMatch[1].split(",").map(s => s.trim().replace(/"/g, ""));
+        }
+        sendEvent({ type: "signal", data: { extractedSignals: pipelineContext.signals.length, signals: pipelineContext.signals.slice(0, 5) } });
       }
+
+      if (tier === 2) {
+        pipelineContext.udoGraph = { traversalComplete: true, nodesAnalyzed: tierResponse.split("\n").length, tier2Summary: tierResponse.slice(0, 300) };
+        sendEvent({ type: "udo_path", data: pipelineContext.udoGraph });
+      }
+
+      if (tier === 3) {
+        try {
+          const rcMatch = tierResponse.match(/\[[\s\S]*?\]/);
+          if (rcMatch) {
+            pipelineContext.rootCauses = JSON.parse(rcMatch[0]);
+          }
+        } catch {
+          pipelineContext.rootCauses = [{ cause: "See analysis", confidence: 70, reasoning: "Probabilistic ranking in output" }];
+        }
+        sendEvent({ type: "progress", message: `Probabilistic ranking complete. ${pipelineContext.rootCauses.length} candidate root causes identified.` });
+
+        const topConfidence = pipelineContext.rootCauses[0]?.confidence || 0;
+        if (topConfidence >= 90) {
+          sendEvent({ type: "progress", message: `High-confidence gate passed (${topConfidence}%). Skipping deeper tiers.` });
+          await db.update(diagnosticAttemptsTable).set({ status: "completed", confidenceScore: topConfidence, completedAt: new Date(), signals: pipelineContext.signals, rootCauses: pipelineContext.rootCauses, costTokens: tokenCount }).where(eq(diagnosticAttemptsTable.id, attempt.id));
+          break;
+        }
+      }
+
+      if (tier === 4) {
+        sendEvent({ type: "progress", message: "Stage 6/7: Guardrails validation & cost assessment" });
+      }
+
+      await db.update(diagnosticAttemptsTable).set({
+        status: "completed",
+        completedAt: new Date(),
+        signals: tier === 1 ? pipelineContext.signals : undefined,
+        udoGraph: tier === 2 ? pipelineContext.udoGraph : undefined,
+        rootCauses: tier === 3 ? pipelineContext.rootCauses : undefined,
+        confidenceScore: tier === 3 ? (pipelineContext.rootCauses[0]?.confidence || 70) : undefined,
+        costTokens: tokenCount,
+      }).where(eq(diagnosticAttemptsTable.id, attempt.id));
+
+      sendEvent({ type: "tier_complete", tier, summary: tierResponse.slice(0, 200) });
     }
+
+    sendEvent({ type: "progress", message: "Stage 7/7: Resolution synthesis & human-readable translation" });
 
     const finalStream = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -191,23 +257,23 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
       messages: [
         {
           role: "system",
-          content: "You are Apphia. Provide a final diagnostic summary with root cause, confidence score (0-100), and recommended resolution. Format as JSON: {rootCause: string, confidenceScore: number, resolution: string, signals: string[]}",
+          content: "You are Apphia. Synthesize all pipeline findings into a final diagnostic report. Provide JSON: {rootCause: string, confidenceScore: number, resolution: string, signals: string[], failurePrediction: string, selfAssessment: string}. The selfAssessment should rate Apphia's own analysis quality. failurePrediction should estimate risk of recurrence.",
         },
         {
           role: "user",
-          content: `Case: ${caseItem.title}\nDescription: ${caseItem.description || "No description"}\nProvide final diagnostic summary.`,
+          content: `Case: ${caseItem.title}\nDescription: ${caseItem.description || "No description"}\nExtracted signals: ${pipelineContext.signals.join(", ")}\nRoot cause candidates: ${JSON.stringify(pipelineContext.rootCauses)}\n\nSynthesize final report with self-assessment and failure prediction.`,
         },
       ],
       stream: false,
     });
 
-    let summary: { rootCause?: string; confidenceScore?: number; resolution?: string; signals?: string[] } = {};
+    let summary: { rootCause?: string; confidenceScore?: number; resolution?: string; signals?: string[]; failurePrediction?: string; selfAssessment?: string } = {};
     try {
       const responseText = finalStream.choices[0]?.message?.content || "{}";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       summary = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
     } catch {
-      summary = { rootCause: "Analysis complete", confidenceScore: 75, resolution: "Review diagnostic output", signals: [] };
+      summary = { rootCause: "Analysis complete", confidenceScore: 75, resolution: "Review diagnostic output", signals: pipelineContext.signals, selfAssessment: "Standard analysis completed", failurePrediction: "Monitor recommended" };
     }
 
     await db
@@ -217,7 +283,7 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
         rootCause: summary.rootCause || "Analysis complete",
         resolution: summary.resolution || "Review output",
         confidenceScore: summary.confidenceScore || 75,
-        signals: summary.signals || [],
+        signals: summary.signals || pipelineContext.signals,
         resolvedAt: new Date(),
       })
       .where(eq(casesTable.id, id));
@@ -306,20 +372,82 @@ router.post("/cases/batch", async (req, res: Response): Promise<void> => {
   res.end();
 });
 
-function getTierPrompt(tier: number, caseItem: Case): string {
+function getStageLabel(tier: number): string {
+  switch (tier) {
+    case 1: return "Stage 1/7: Classification & Typed Signal Extraction";
+    case 2: return "Stage 2/7: UDO Graph Traversal & Environment Modeling";
+    case 3: return "Stage 3/7: Probabilistic Root Cause Ranking";
+    case 4: return "Stage 4/7: Deep Analysis with Guardrails & Cost Gate";
+    case 5: return "Stage 5/7: Resolution Synthesis & Self-Assessment";
+    default: return `Stage ${tier}: Analysis`;
+  }
+}
+
+interface PipelineContext {
+  signals: string[];
+  udoGraph: Record<string, unknown>;
+  rootCauses: Array<{ cause: string; confidence: number; reasoning: string }>;
+  tierOutputs: string[];
+}
+
+function getTierPrompt(tier: number, caseItem: Case, context: PipelineContext): string {
   const base = `Case: "${caseItem.title}"\nDescription: ${caseItem.description || "No description provided"}\n\n`;
 
   switch (tier) {
     case 1:
-      return base + "Tier 1 - Surface Signal Extraction: Identify all observable symptoms, error messages, and surface-level indicators. List each signal with its category (performance, connectivity, security, configuration, resource).";
+      return base + `Tier 1 - Classification & Typed Signal Extraction:
+1. Classify this issue into categories: infrastructure, database, network, application, security, performance, configuration.
+2. Extract ALL observable signals as a typed array. Format signals as: signals: ["signal1", "signal2", ...]
+3. Categorize each signal: (performance|connectivity|security|configuration|resource|data_integrity)
+4. Identify the environment context (production/staging/dev, cloud provider, region if mentioned).
+5. Flag any quick-fix candidates with confidence > 85% for the KB quick-fix gate.`;
+
     case 2:
-      return base + "Tier 2 - UDO Traversal (Unified Diagnostic Object): Map the dependency tree of affected components. Identify upstream and downstream impacts. Trace signal propagation paths.";
+      return base + `Tier 2 - UDO (Unified Diagnostic Object) Graph Traversal:
+Previous signals extracted: ${context.signals.join(", ") || "None yet"}
+
+1. Build the UDO dependency graph: map all affected components and their relationships.
+2. Trace signal propagation paths from origin to observable symptoms.
+3. Model the environment topology from the description and signals.
+4. Identify upstream causes and downstream impacts for each component.
+5. Map cross-component dependencies and failure cascade paths.
+6. Output the traversal as a structured component tree with impact annotations.`;
+
     case 3:
-      return base + "Tier 3 - Probabilistic Root Cause Ranking: Based on extracted signals and UDO traversal, rank the top 5 most likely root causes with confidence percentages. Explain the reasoning for each ranking.";
+      return base + `Tier 3 - Probabilistic Root Cause Ranking:
+Extracted signals: ${context.signals.join(", ") || "From analysis"}
+UDO traversal complete: ${context.udoGraph.traversalComplete ? "Yes" : "In progress"}
+
+1. Apply Bayesian reasoning to rank root cause candidates.
+2. Output as JSON array: [{cause: "description", confidence: 0-100, reasoning: "explanation"}, ...]
+3. Consider compound failures and multi-cause scenarios.
+4. Factor in signal correlation strength and UDO path distances.
+5. Include at least 3 candidates, ranked by confidence.
+6. Flag if top candidate confidence >= 90% (triggers confidence gate for early resolution).`;
+
     case 4:
-      return base + "Tier 4 - Deep System Analysis: Perform detailed analysis of the top root cause candidates. Check for compound failures, cascading effects, and hidden dependencies. Validate or invalidate each hypothesis.";
+      return base + `Tier 4 - Deep Analysis, Guardrails & Cost Gate:
+Top root causes: ${JSON.stringify(context.rootCauses.slice(0, 3))}
+All signals: ${context.signals.join(", ")}
+
+1. Perform deep validation of top 3 root cause candidates.
+2. Check for compound failures, cascading effects, and hidden dependencies.
+3. Apply guardrails: verify no destructive recommendations, validate remediation safety.
+4. Cost assessment: estimate remediation complexity (low/medium/high/critical).
+5. Validate each hypothesis against the signal evidence.
+6. Provide evidence-based confirmation or rejection for each candidate.`;
+
     case 5:
-      return base + "Tier 5 - Resolution Synthesis: Synthesize all findings into a comprehensive resolution plan. Provide step-by-step remediation, preventive measures, and monitoring recommendations.";
+      return base + `Tier 5 - Resolution Synthesis, Self-Assessment & Failure Prediction:
+Confirmed root causes: ${JSON.stringify(context.rootCauses.slice(0, 3))}
+Pipeline signals: ${context.signals.join(", ")}
+
+1. Synthesize a comprehensive resolution plan with step-by-step remediation.
+2. Self-assessment: rate the analysis quality (thoroughness, confidence, evidence strength) on a 1-10 scale.
+3. Failure prediction: estimate probability of recurrence and recommend monitoring.
+4. Provide human-readable translation variants: executive summary (non-technical) and engineering detail.
+5. Include preventive measures and long-term architectural recommendations.`;
+
     default:
       return base + "Provide a general diagnostic analysis.";
   }

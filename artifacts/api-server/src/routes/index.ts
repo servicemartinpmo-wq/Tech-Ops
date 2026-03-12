@@ -8,6 +8,8 @@ import connectorsRouter from "./connectors";
 import automationRouter from "./automation";
 import preferencesRouter from "./preferences";
 import openaiRouter from "./openai";
+import batchesRouter from "./batches";
+import alertsRouter from "./alerts";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(connectorsRouter);
 router.use(automationRouter);
 router.use(preferencesRouter);
 router.use(openaiRouter);
+router.use(batchesRouter);
+router.use(alertsRouter);
 
 export default router;
