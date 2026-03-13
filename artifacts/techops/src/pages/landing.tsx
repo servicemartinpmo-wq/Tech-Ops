@@ -2,7 +2,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Redirect } from "wouter";
 import { Button } from "@/components/ui";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen, Star, Quote } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen, Star, Quote, Monitor, Lock, Search, Bell } from "lucide-react";
 import { useRef, useState } from "react";
 
 const BASE = import.meta.env.BASE_URL;
@@ -295,26 +295,210 @@ function LightHero({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-function StatsBar() {
-  const stats = [
-    { value: "7-Stage", label: "Diagnostic Pipeline" },
-    { value: "< 30s", label: "Root Cause Analysis" },
-    { value: "24/7", label: "Continuous Monitoring" },
-    { value: "100%", label: "Audit Trail Coverage" },
-    { value: "1,000+", label: "KB Resolution Entries" },
-    { value: "4-Tier", label: "Permission Control" },
-  ];
+const PROMOS = [
+  {
+    badge: "24/7",
+    title: "Continuous Monitoring",
+    description: "Always-on health checks scan your infrastructure around the clock — catching anomalies before your users ever notice.",
+    icon: Activity,
+    gradient: "from-sky-500 to-cyan-400",
+    bg: "bg-sky-50",
+    accent: "#0ea5e9",
+    pattern: "M 0 20 Q 25 0 50 20 Q 75 40 100 20",
+    dots: [
+      { cx: 20, cy: 30, r: 3, fill: "#bae6fd" },
+      { cx: 55, cy: 15, r: 4, fill: "#7dd3fc" },
+      { cx: 80, cy: 35, r: 2.5, fill: "#bae6fd" },
+      { cx: 40, cy: 55, r: 3.5, fill: "#38bdf8" },
+    ],
+  },
+  {
+    badge: "< 30s",
+    title: "Root Cause Analysis",
+    description: "The 12-stage Apphia diagnostic pipeline traces any incident — network, memory, DNS, SSL — to its exact origin in seconds.",
+    icon: Search,
+    gradient: "from-violet-600 to-indigo-500",
+    bg: "bg-violet-50",
+    accent: "#7c3aed",
+    pattern: "M 0 30 Q 30 10 60 30 Q 80 45 100 25",
+    dots: [
+      { cx: 15, cy: 45, r: 3, fill: "#ddd6fe" },
+      { cx: 50, cy: 20, r: 4, fill: "#c4b5fd" },
+      { cx: 75, cy: 40, r: 2.5, fill: "#ddd6fe" },
+      { cx: 35, cy: 60, r: 3.5, fill: "#a78bfa" },
+    ],
+  },
+  {
+    badge: "100%",
+    title: "Audit Trail Coverage",
+    description: "Every action, every user, every timestamp — immutably logged. Compliance and forensics built into the foundation.",
+    icon: Shield,
+    gradient: "from-emerald-500 to-teal-400",
+    bg: "bg-emerald-50",
+    accent: "#10b981",
+    pattern: "M 0 25 Q 20 5 50 25 Q 70 40 100 20",
+    dots: [
+      { cx: 25, cy: 40, r: 3, fill: "#a7f3d0" },
+      { cx: 60, cy: 18, r: 4, fill: "#6ee7b7" },
+      { cx: 85, cy: 38, r: 2.5, fill: "#a7f3d0" },
+      { cx: 45, cy: 58, r: 3.5, fill: "#34d399" },
+    ],
+  },
+  {
+    badge: "1,000+",
+    title: "Knowledge Base",
+    description: "A curated library of resolution playbooks grows with every case closed — your team's institutional memory, always searchable.",
+    icon: BookOpen,
+    gradient: "from-amber-500 to-orange-400",
+    bg: "bg-amber-50",
+    accent: "#f59e0b",
+    pattern: "M 0 35 Q 30 15 55 35 Q 75 50 100 30",
+    dots: [
+      { cx: 18, cy: 48, r: 3, fill: "#fde68a" },
+      { cx: 55, cy: 22, r: 4, fill: "#fcd34d" },
+      { cx: 82, cy: 42, r: 2.5, fill: "#fde68a" },
+      { cx: 40, cy: 62, r: 3.5, fill: "#fbbf24" },
+    ],
+  },
+  {
+    badge: "Full",
+    title: "Remote Assistance",
+    description: "TeamViewer-style screen sharing, session recording, and real-time co-control — built directly into the platform.",
+    icon: Monitor,
+    gradient: "from-indigo-500 to-blue-500",
+    bg: "bg-indigo-50",
+    accent: "#6366f1",
+    pattern: "M 0 28 Q 25 8 50 28 Q 75 48 100 22",
+    dots: [
+      { cx: 22, cy: 42, r: 3, fill: "#c7d2fe" },
+      { cx: 58, cy: 16, r: 4, fill: "#a5b4fc" },
+      { cx: 78, cy: 44, r: 2.5, fill: "#c7d2fe" },
+      { cx: 42, cy: 60, r: 3.5, fill: "#818cf8" },
+    ],
+  },
+  {
+    badge: "4-Tier",
+    title: "Permission Control",
+    description: "Viewer, Support, Admin, and Creator roles give every team member exactly the access they need — no more, no less.",
+    icon: Lock,
+    gradient: "from-slate-600 to-slate-500",
+    bg: "bg-slate-50",
+    accent: "#475569",
+    pattern: "M 0 22 Q 30 5 58 22 Q 78 38 100 18",
+    dots: [
+      { cx: 20, cy: 36, r: 3, fill: "#cbd5e1" },
+      { cx: 55, cy: 14, r: 4, fill: "#94a3b8" },
+      { cx: 80, cy: 36, r: 2.5, fill: "#cbd5e1" },
+      { cx: 38, cy: 56, r: 3.5, fill: "#64748b" },
+    ],
+  },
+  {
+    badge: "Instant",
+    title: "Alert Engine",
+    description: "SLA breach detection, anomaly triggers, and escalation rules fire the moment thresholds are crossed — zero lag.",
+    icon: Bell,
+    gradient: "from-rose-500 to-pink-500",
+    bg: "bg-rose-50",
+    accent: "#f43f5e",
+    pattern: "M 0 32 Q 28 12 52 32 Q 76 52 100 26",
+    dots: [
+      { cx: 24, cy: 46, r: 3, fill: "#fecdd3" },
+      { cx: 57, cy: 20, r: 4, fill: "#fda4af" },
+      { cx: 83, cy: 40, r: 2.5, fill: "#fecdd3" },
+      { cx: 41, cy: 62, r: 3.5, fill: "#fb7185" },
+    ],
+  },
+];
+
+function PromoCarousel() {
+  const [active, setActive] = useState(0);
+  const [direction, setDirection] = useState(1);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const go = (next: number) => {
+    const idx = (next + PROMOS.length) % PROMOS.length;
+    setDirection(next > active ? 1 : -1);
+    setActive(idx);
+  };
+
+  const resetTimer = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => setActive(a => (a + 1) % PROMOS.length), 4500);
+  };
+
+  useState(() => {
+    intervalRef.current = setInterval(() => setActive(a => (a + 1) % PROMOS.length), 4500);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  });
+
+  const p = PROMOS[active];
+  const Icon = p.icon;
 
   return (
-    <div className="relative z-10 border-y border-slate-100 bg-slate-50 overflow-hidden">
-      <div className="flex animate-[ticker_30s_linear_infinite] whitespace-nowrap py-5">
-        {[...stats, ...stats].map((stat, i) => (
-          <div key={i} className="flex items-center gap-3 px-10 shrink-0">
-            <span className="font-display font-black text-2xl text-slate-900">{stat.value}</span>
-            <span className="text-slate-400 text-sm">{stat.label}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-300 ml-5" />
-          </div>
-        ))}
+    <div className="relative z-10 border-y border-slate-100 bg-white py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-100 shadow-lg shadow-slate-100/80">
+          <motion.div
+            key={active}
+            initial={{ opacity: 0, x: direction * 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className={`grid md:grid-cols-2 min-h-[320px] ${p.bg}`}
+          >
+            <div className={`relative flex items-center justify-center bg-gradient-to-br ${p.gradient} min-h-[200px] md:min-h-[320px] overflow-hidden`}>
+              <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 100 80" preserveAspectRatio="none">
+                <path d={p.pattern} stroke="white" strokeWidth="0.5" fill="none" />
+                <path d={p.pattern.replace(/Q (\d+) (\d+) /g, (_, a, b) => `Q ${+a + 5} ${+b + 8} `)} stroke="white" strokeWidth="0.3" fill="none" opacity="0.5" />
+                {p.dots.map((d, i) => <circle key={i} cx={d.cx} cy={d.cy} r={d.r} fill={d.fill} opacity="0.7" />)}
+              </svg>
+              <div className="relative z-10 flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-xl">
+                  <Icon className="w-10 h-10 text-white" />
+                </div>
+                <span className="font-display font-black text-4xl text-white drop-shadow">{p.badge}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-center p-8 md:p-10">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] mb-3" style={{ color: p.accent }}>
+                Platform Feature
+              </p>
+              <h3 className="font-display text-2xl md:text-3xl font-black text-slate-900 mb-4 leading-tight">
+                {p.title}
+              </h3>
+              <p className="text-slate-500 leading-relaxed text-[15px] mb-8">
+                {p.description}
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { go(active - 1); resetTimer(); }}
+                  className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-500" />
+                </button>
+                <div className="flex gap-1.5">
+                  {PROMOS.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { go(i); resetTimer(); }}
+                      className="h-1.5 rounded-full transition-all duration-300"
+                      style={{
+                        width: i === active ? "20px" : "6px",
+                        backgroundColor: i === active ? p.accent : "#cbd5e1",
+                      }}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => { go(active + 1); resetTimer(); }}
+                  className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </div>
   );
@@ -603,7 +787,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-white font-sans">
       <LightHero onLogin={handleLogin} />
-      <StatsBar />
+      <PromoCarousel />
       <SocialProofSection />
       <FeatureCarousel />
       <PlatformSection />
