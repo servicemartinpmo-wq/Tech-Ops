@@ -19,6 +19,10 @@ import hostingRouter from "./hosting";
 import screenshareRouter from "./screenshare";
 import companyVaultRouter from "./companyVault";
 import recommendRouter from "./recommend";
+import securityRouter from "./security";
+import pmoRouter from "./pmo";
+import stackRouter from "./stack";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -42,5 +46,9 @@ router.use(hostingRouter);
 router.use(screenshareRouter);
 router.use(companyVaultRouter);
 router.use(recommendRouter);
+router.use(securityRouter);
+router.use(pmoRouter);
+router.use(stackRouter);
+router.use(adminRouter);
 
 export default router;

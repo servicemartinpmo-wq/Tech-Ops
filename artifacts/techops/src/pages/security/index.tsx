@@ -1,26 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, Badge, Button } from "@/components/ui";
 import { motion } from "framer-motion";
-import { 
-  ShieldCheck, ShieldAlert, Lock, Eye, AlertTriangle, CheckCircle2, 
-  XCircle, Clock, Users, Key, Activity, TrendingUp, RefreshCw, Cpu
+import {
+  ShieldCheck, ShieldAlert, Lock, Eye, AlertTriangle, CheckCircle2,
+  XCircle, Clock, Activity, RefreshCw, FileText
 } from "lucide-react";
+import { useApiBase } from "@/hooks/use-api-base";
+
+interface PrivacyCheck { label: string; status: "pass" | "warn" | "fail"; note?: string }
+interface ConnectorIssue { name: string; checks: number; failures: number; uptime: number }
+interface AuditEvent { id: number; action: string; resourceType: string; resourceId?: string; details?: Record<string, unknown>; createdAt: string }
+interface SecurityData {
+  score: number;
+  period: { days: number };
+  auditEvents: { total: number; recent: AuditEvent[] };
+  alerts: { bySeverity: Record<string, number>; total: number };
+  cases: { total: number; breached: number; critical: number; slaRate: number };
+  connectorIssues: ConnectorIssue[];
+  privacyChecks: PrivacyCheck[];
+}
 
 function RadialGauge({ score, size = 140 }: { score: number; size?: number }) {
   const color = score >= 80 ? "#00ff88" : score >= 50 ? "#ffb800" : "#ff3355";
   const circumference = 2 * Math.PI * 58;
   const offset = circumference - (score / 100) * circumference;
-
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <svg viewBox="0 0 130 130" className="w-full h-full -rotate-90">
         <circle cx="65" cy="65" r="58" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
-        <motion.circle
-          cx="65" cy="65" r="58" fill="none"
-          stroke={color}
-          strokeWidth="8"
-          strokeDasharray={circumference}
-          strokeLinecap="round"
+        <motion.circle cx="65" cy="65" r="58" fill="none" stroke={color} strokeWidth="8"
+          strokeDasharray={circumference} strokeLinecap="round"
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: offset }}
           transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
@@ -35,292 +44,186 @@ function RadialGauge({ score, size = 140 }: { score: number; size?: number }) {
   );
 }
 
-const vulnerabilities = [
-  { id: 1, title: "API Token Expiring Soon", app: "Cloud Infrastructure", severity: "high", description: "OAuth token expires in 7 days. Renew to prevent service interruption.", remediation: "Navigate to Cloud settings and regenerate the API token." },
-  { id: 2, title: "Deprecated API Version", app: "Email Service", severity: "medium", description: "Using API v2 which is deprecated. Migration to v3 recommended.", remediation: "Update email integration SDK to latest version and migrate endpoints." },
-  { id: 3, title: "Missing Rate Limiting", app: "Network Services", severity: "medium", description: "No rate limiting configured on public-facing webhook endpoints.", remediation: "Configure rate limiting rules in the network service dashboard." },
-  { id: 4, title: "Overly Broad OAuth Scopes", app: "Monitoring Stack", severity: "low", description: "Monitoring integration has write access that isn't utilized.", remediation: "Review and reduce OAuth scopes to read-only access." },
-];
+const statusIcon = (s: string) => s === "pass"
+  ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+  : s === "warn"
+    ? <AlertTriangle className="w-4 h-4 text-amber-400" />
+    : <XCircle className="w-4 h-4 text-rose-400" />;
 
-const privacyChecks = [
-  { label: "Data encryption at rest", status: "pass" },
-  { label: "HTTPS on all endpoints", status: "pass" },
-  { label: "PII field masking", status: "warn", note: "2 fields exposed in logs" },
-  { label: "API permission boundaries", status: "pass" },
-  { label: "Data retention policy", status: "warn", note: "No policy defined" },
-  { label: "Cross-app data sharing audit", status: "pass" },
-  { label: "Webhook endpoint security", status: "fail", note: "1 HTTP-only webhook" },
-  { label: "Session token rotation", status: "pass" },
-];
-
-const auditLog = [
-  { user: "admin@techops.io", action: "Modified automation rule", app: "Automation Center", time: "2 min ago", type: "write" },
-  { user: "dev@techops.io", action: "Accessed API keys", app: "Security Gateway", time: "15 min ago", type: "read" },
-  { user: "admin@techops.io", action: "Updated connector config", app: "Cloud Infrastructure", time: "1 hr ago", type: "write" },
-  { user: "bot@apphia.io", action: "Ran security scan", app: "All Systems", time: "2 hrs ago", type: "system" },
-  { user: "dev@techops.io", action: "Viewed diagnostic case", app: "Diagnostic Cases", time: "3 hrs ago", type: "read" },
-];
-
-const permissionMatrix = [
-  { user: "Admin User", apps: { email: "admin", cloud: "admin", database: "admin", network: "admin", security: "admin", monitoring: "admin" } },
-  { user: "Dev User", apps: { email: "read", cloud: "write", database: "write", network: "read", security: "read", monitoring: "read" } },
-  { user: "Apphia Bot", apps: { email: "read", cloud: "read", database: "read", network: "read", security: "write", monitoring: "write" } },
-];
+const sevColor: Record<string, string> = {
+  critical: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  high:     "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  medium:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  low:      "bg-slate-500/10 text-slate-400 border-slate-500/20",
+};
 
 export default function Security() {
-  const [activeTab, setActiveTab] = useState<"overview" | "vulnerabilities" | "privacy" | "audit" | "permissions">("overview");
-  const securityScore = 78;
+  const apiBase = useApiBase();
+  const [data, setData]       = useState<SecurityData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]         = useState<"overview" | "audit" | "connectors">("overview");
 
-  const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "vulnerabilities", label: "Vulnerabilities" },
-    { id: "privacy", label: "Privacy Compliance" },
-    { id: "audit", label: "Access Audit" },
-    { id: "permissions", label: "Permissions" },
-  ] as const;
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/security/dashboard`, { credentials: "include" });
+      if (res.ok) setData(await res.json() as SecurityData);
+    } finally { setLoading(false); }
+  }, [apiBase]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const scoreLabel = !data ? "—" : data.score >= 80 ? "Strong" : data.score >= 50 ? "Fair" : "At Risk";
+  const scoreColor = !data ? "text-slate-400" : data.score >= 80 ? "text-emerald-400" : data.score >= 50 ? "text-amber-400" : "text-rose-400";
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-3xl font-display font-bold text-white text-glow flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-cyan-400" />
-              Security & Privacy Command Center
-            </h1>
-            <p className="text-slate-500 mt-1">Continuous monitoring and threat detection across your tech stack.</p>
-          </div>
-          <Button variant="secondary" className="gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Run Full Scan
-          </Button>
+    <div className="max-w-6xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-white text-glow">Security Dashboard</h1>
+          <p className="text-slate-500 mt-1">Live security posture computed from audit logs, alerts, and SLA data.</p>
         </div>
+        <Button variant="outline" onClick={() => void load()} disabled={loading} size="sm" className="flex items-center gap-2">
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </motion.div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all ${
-              activeTab === tab.id
-                ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
-                : "text-slate-500 hover:text-slate-300 hover:bg-white/[0.03] border border-transparent"
-            }`}
-          >
-            {tab.label}
+      {/* Top strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Security Score", value: loading ? "—" : String(data?.score ?? 0), sub: scoreLabel, color: scoreColor, Icon: ShieldCheck },
+          { label: "Audit Events (30d)", value: loading ? "—" : String(data?.auditEvents.total ?? 0), sub: "logged actions", color: "text-sky-400", Icon: FileText },
+          { label: "Active Alerts", value: loading ? "—" : String(data?.alerts.total ?? 0), sub: `${data?.alerts.bySeverity.critical ?? 0} critical`, color: "text-amber-400", Icon: AlertTriangle },
+          { label: "SLA Compliance", value: loading ? "—" : `${data?.cases.slaRate ?? 0}%`, sub: "last 30d", color: data?.cases.slaRate && data.cases.slaRate >= 90 ? "text-emerald-400" : "text-rose-400", Icon: Activity },
+        ].map(({ label, value, sub, color, Icon }) => (
+          <Card key={label} className="p-5 bg-[#0d0f17] border border-white/[0.06]">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
+                <p className={`text-2xl font-bold tabular-nums ${color}`}>{value}</p>
+                {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+              </div>
+              <Icon className={`w-5 h-5 ${color} mt-1`} />
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 p-1 bg-white/[0.02] border border-white/[0.04] rounded-xl w-fit">
+        {(["overview", "audit", "connectors"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? "bg-violet-600 text-white" : "text-slate-400 hover:text-white"}`}>
+            {t === "overview" ? "Overview" : t === "audit" ? "Audit Log" : "Connector Issues"}
           </button>
         ))}
       </div>
 
-      {activeTab === "overview" && (
+      {tab === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="p-6 flex flex-col items-center">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Security Score</h3>
-              <RadialGauge score={securityScore} />
-              <p className="mt-4 text-sm text-amber-400 font-medium">Good — 3 items need attention</p>
-            </Card>
-          </motion.div>
+          {/* Gauge */}
+          <Card className="p-6 bg-[#0d0f17] border border-white/[0.06] flex flex-col items-center justify-center gap-4">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Security Posture</h3>
+            {loading ? <div className="w-[140px] h-[140px] bg-white/[0.04] rounded-full animate-pulse" /> : <RadialGauge score={data?.score ?? 0} />}
+            <p className={`text-lg font-bold ${scoreColor}`}>{scoreLabel}</p>
+            <p className="text-xs text-slate-600 text-center">Computed from audit events, alert severity, SLA compliance, and critical case rate.</p>
+          </Card>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="lg:col-span-2">
-            <Card className="p-6 h-full">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Threat Detection Alerts</h3>
-              <div className="space-y-3">
-                {[
-                  { title: "Unusual login location detected", severity: "warning", time: "5 min ago" },
-                  { title: "Bulk data export request", severity: "info", time: "2 hrs ago" },
-                  { title: "Failed auth attempts (3x)", severity: "error", time: "4 hrs ago" },
-                ].map((alert, i) => (
-                  <div key={i} className={`p-3 rounded-lg border ${
-                    alert.severity === "error" ? "border-red-500/20 bg-red-500/5" :
-                    alert.severity === "warning" ? "border-amber-500/20 bg-amber-500/5" :
-                    "border-cyan-500/20 bg-cyan-500/5"
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {alert.severity === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
-                         alert.severity === "warning" ? <AlertTriangle className="w-4 h-4 text-amber-400" /> :
-                         <Activity className="w-4 h-4 text-cyan-400" />}
-                        <span className="text-sm font-medium text-slate-300">{alert.title}</span>
+          {/* Privacy / Compliance Checks */}
+          <Card className="lg:col-span-2 p-6 bg-[#0d0f17] border border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Compliance Checks</h3>
+            {loading ? (
+              <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="h-9 bg-white/[0.04] rounded-lg animate-pulse" />)}</div>
+            ) : (
+              <div className="space-y-2">
+                {(data?.privacyChecks || []).map((c) => (
+                  <div key={c.label} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                    <div className="flex items-center gap-3">
+                      {statusIcon(c.status)}
+                      <span className="text-sm text-slate-300">{c.label}</span>
+                    </div>
+                    {c.note && <span className="text-xs text-slate-500">{c.note}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Alert breakdown */}
+          <Card className="lg:col-span-3 p-6 bg-[#0d0f17] border border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Alert Severity Breakdown (30d)</h3>
+            {loading ? <div className="h-16 bg-white/[0.04] rounded-lg animate-pulse" /> : (
+              Object.keys(data?.alerts.bySeverity || {}).length === 0
+                ? <p className="text-sm text-slate-500 text-center py-6">No alerts in last 30 days.</p>
+                : <div className="flex flex-wrap gap-3">
+                    {Object.entries(data?.alerts.bySeverity || {}).map(([sev, cnt]) => (
+                      <div key={sev} className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium ${sevColor[sev] || sevColor.low}`}>
+                        <span className="capitalize">{sev}</span>
+                        <span className="font-bold">{cnt}</span>
                       </div>
-                      <span className="text-xs text-slate-600">{alert.time}</span>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="lg:col-span-3">
-            <Card className="p-6">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-cyan-400" />
-                Security Trend (30 days)
-              </h3>
-              <div className="h-32 flex items-end gap-1">
-                {Array.from({ length: 30 }, (_, i) => {
-                  const h = 40 + Math.sin(i * 0.3) * 20 + Math.random() * 20;
-                  const color = h > 70 ? "bg-emerald-500/60" : h > 50 ? "bg-amber-500/60" : "bg-red-500/60";
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ height: 0 }}
-                      animate={{ height: `${h}%` }}
-                      transition={{ delay: i * 0.02, duration: 0.4 }}
-                      className={`flex-1 rounded-t ${color}`}
-                    />
-                  );
-                })}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-slate-600">
-                <span>30 days ago</span>
-                <span>Today</span>
-              </div>
-            </Card>
-          </motion.div>
+            )}
+          </Card>
         </div>
       )}
 
-      {activeTab === "vulnerabilities" && (
-        <div className="space-y-4">
-          {vulnerabilities.map((vuln, i) => (
-            <motion.div
-              key={vuln.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <Card className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <ShieldAlert className={`w-5 h-5 ${
-                      vuln.severity === "high" ? "text-red-400" :
-                      vuln.severity === "medium" ? "text-amber-400" : "text-blue-400"
-                    }`} />
-                    <div>
-                      <h3 className="font-bold text-white">{vuln.title}</h3>
-                      <span className="text-xs text-slate-500">{vuln.app}</span>
-                    </div>
+      {tab === "audit" && (
+        <Card className="p-6 bg-[#0d0f17] border border-white/[0.06]">
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Recent Audit Events</h3>
+          {loading ? (
+            <div className="space-y-3">{[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-white/[0.04] rounded-lg animate-pulse" />)}</div>
+          ) : (data?.auditEvents.recent || []).length === 0 ? (
+            <div className="text-center py-12">
+              <Lock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-sm text-slate-500">No audit events recorded yet.</p>
+              <p className="text-xs text-slate-600 mt-1">Events appear as you use the platform.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar">
+              {data?.auditEvents.recent.map((e) => (
+                <div key={e.id} className="flex items-center gap-4 p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.04] transition-colors">
+                  <Eye className="w-4 h-4 text-slate-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-300 truncate"><span className="font-mono text-violet-400">{e.action}</span> on {e.resourceType}{e.resourceId ? ` #${e.resourceId}` : ""}</p>
                   </div>
-                  <Badge variant={vuln.severity === "high" ? "error" : vuln.severity === "medium" ? "warning" : "default"}>
-                    {vuln.severity.toUpperCase()}
-                  </Badge>
+                  <span className="text-xs text-slate-600 shrink-0">{new Date(e.createdAt).toLocaleString()}</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-3">{vuln.description}</p>
-                <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 font-semibold">Remediation</p>
-                  <p className="text-sm text-cyan-400">{vuln.remediation}</p>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === "privacy" && (
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-white mb-4">Privacy Compliance Scanner</h3>
-          <div className="space-y-3">
-            {privacyChecks.map((check, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.04 }}
-                className="flex items-center justify-between p-3 rounded-lg border border-white/[0.04] hover:border-white/[0.08] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  {check.status === "pass" ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> :
-                   check.status === "warn" ? <AlertTriangle className="w-5 h-5 text-amber-400" /> :
-                   <XCircle className="w-5 h-5 text-red-400" />}
-                  <span className="text-sm text-slate-300">{check.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {check.note && <span className="text-xs text-slate-500">{check.note}</span>}
-                  <Badge variant={check.status === "pass" ? "success" : check.status === "warn" ? "warning" : "error"}>
-                    {check.status.toUpperCase()}
-                  </Badge>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {activeTab === "audit" && (
-        <Card className="p-6">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-cyan-400" />
-            Access Audit Log
-          </h3>
-          <div className="space-y-3">
-            {auditLog.map((entry, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-4 p-3 rounded-lg border border-white/[0.04]"
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  entry.type === "write" ? "bg-amber-500/10" : entry.type === "system" ? "bg-cyan-500/10" : "bg-white/5"
-                }`}>
-                  {entry.type === "write" ? <Key className="w-4 h-4 text-amber-400" /> :
-                   entry.type === "system" ? <Cpu className="w-4 h-4 text-cyan-400" /> :
-                   <Eye className="w-4 h-4 text-slate-400" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-300">{entry.action}</p>
-                  <p className="text-xs text-slate-500">{entry.user} • {entry.app}</p>
-                </div>
-                <span className="text-xs text-slate-600 shrink-0">{entry.time}</span>
-              </motion.div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {activeTab === "permissions" && (
-        <Card className="p-6 overflow-x-auto">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Users className="w-5 h-5 text-cyan-400" />
-            Permission Matrix
-          </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <th className="text-left py-3 px-2 text-slate-500 font-medium">User</th>
-                {["Email", "Cloud", "Database", "Network", "Security", "Monitoring"].map(h => (
-                  <th key={h} className="text-center py-3 px-2 text-slate-500 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {permissionMatrix.map((row, i) => (
-                <motion.tr
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="border-b border-white/[0.03]"
-                >
-                  <td className="py-3 px-2 text-slate-300 font-medium">{row.user}</td>
-                  {Object.values(row.apps).map((level, j) => (
-                    <td key={j} className="text-center py-3 px-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        level === "admin" ? "bg-red-500/10 text-red-400" :
-                        level === "write" ? "bg-amber-500/10 text-amber-400" :
-                        "bg-emerald-500/10 text-emerald-400"
-                      }`}>
-                        {level}
-                      </span>
-                    </td>
-                  ))}
-                </motion.tr>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {tab === "connectors" && (
+        <Card className="p-6 bg-[#0d0f17] border border-white/[0.06]">
+          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">Connector Health Issues (7d)</h3>
+          {loading ? (
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 bg-white/[0.04] rounded-lg animate-pulse" />)}</div>
+          ) : (data?.connectorIssues || []).length === 0 ? (
+            <div className="text-center py-12">
+              <ShieldCheck className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+              <p className="text-sm text-slate-300 font-medium">All connectors healthy</p>
+              <p className="text-xs text-slate-500 mt-1">No failures detected in the past 7 days.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {data?.connectorIssues.map((c) => (
+                <div key={c.name} className="flex items-center gap-4 p-4 rounded-lg bg-rose-500/5 border border-rose-500/20">
+                  <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-200">{c.name}</p>
+                    <p className="text-xs text-slate-500">{c.failures} failure{c.failures !== 1 ? "s" : ""} out of {c.checks} checks</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${c.uptime >= 95 ? "text-emerald-400" : c.uptime >= 80 ? "text-amber-400" : "text-rose-400"}`}>{c.uptime}%</p>
+                    <p className="text-xs text-slate-500">uptime</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
     </div>

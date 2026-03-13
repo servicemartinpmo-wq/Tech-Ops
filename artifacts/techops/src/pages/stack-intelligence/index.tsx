@@ -1,281 +1,265 @@
-import { Card, Badge, Button } from "@/components/ui";
+import { useState, useEffect, useCallback } from "react";
+import { Card, Button } from "@/components/ui";
 import { motion } from "framer-motion";
-import { 
-  Brain, CheckCircle2, AlertTriangle, Lightbulb, DollarSign, 
-  TrendingDown, ArrowRight, Layers, BarChart3, Zap
+import {
+  Brain, CheckCircle2, AlertTriangle, Lightbulb, ArrowRight,
+  Layers, BarChart3, Zap, RefreshCw, Wifi, WifiOff, Camera
 } from "lucide-react";
+import { useApiBase } from "@/hooks/use-api-base";
+import { Link } from "wouter";
 
-const stackCategories = [
-  {
-    name: "Finance & Accounting",
-    have: [
-      { name: "QuickBooks", desc: "Invoicing, payroll" },
-      { name: "Stripe", desc: "Payments processing" },
-    ],
-    missing: [
-      { name: "Expense Management", reason: "Manual expense tracking costs ~5 hrs/week for teams your size" },
-    ],
-    recommended: [
-      { name: "Expensify or Ramp", rationale: "Automates expense reports, integrates with QuickBooks", priority: "high" },
-    ],
-  },
-  {
-    name: "Communication & Collaboration",
-    have: [
-      { name: "Slack", desc: "Team messaging" },
-      { name: "Email Service", desc: "Transactional email" },
-    ],
-    missing: [
-      { name: "Video Conferencing", reason: "No dedicated video platform for client calls and team standups" },
-    ],
-    recommended: [
-      { name: "Zoom or Google Meet", rationale: "Essential for remote team collaboration", priority: "medium" },
-    ],
-  },
-  {
-    name: "DevOps & Infrastructure",
-    have: [
-      { name: "Cloud Infrastructure", desc: "Hosting, compute" },
-      { name: "Database Systems", desc: "Data storage" },
-      { name: "Monitoring Stack", desc: "System monitoring" },
-    ],
-    missing: [],
-    recommended: [
-      { name: "CI/CD Pipeline (GitHub Actions)", rationale: "Automate deployments and testing", priority: "medium" },
-    ],
-  },
-  {
-    name: "Security & Compliance",
-    have: [
-      { name: "Security Gateway", desc: "Auth & access control" },
-      { name: "Network Services", desc: "Firewall, VPN" },
-    ],
-    missing: [
-      { name: "SIEM / Log Aggregation", reason: "No centralized security event monitoring for audit trails" },
-    ],
-    recommended: [
-      { name: "Datadog Security or Splunk", rationale: "Centralized log analysis and threat detection", priority: "high" },
-    ],
-  },
-  {
-    name: "CRM & Sales",
-    have: [],
-    missing: [
-      { name: "CRM Platform", reason: "No customer relationship tracking — leads may be falling through the cracks" },
-    ],
-    recommended: [
-      { name: "HubSpot CRM (Free Tier)", rationale: "Free to start, scales with your team, integrates with email", priority: "high" },
-    ],
-  },
-  {
-    name: "Project Management",
-    have: [],
-    missing: [
-      { name: "Project Tracking Tool", reason: "No dedicated project management — relying on chat and email for task tracking" },
-    ],
-    recommended: [
-      { name: "Linear or Asana", rationale: "Structured task management with team visibility", priority: "medium" },
-    ],
-  },
-];
+interface Recommendation {
+  category: string;
+  title: string;
+  priority: "critical" | "high" | "medium" | "low";
+  rationale: string;
+  action: string;
+  estimatedImpact: string;
+}
 
-const redundancies = [
-  { apps: ["Monitoring Stack", "Cloud Infrastructure"], overlap: "Both include basic monitoring features", estimatedWaste: "$45/mo" },
-];
+interface ConnectorSummary {
+  name: string;
+  status: string;
+  uptime: number;
+  totalChecks: number;
+}
 
-const costBreakdown = [
-  { category: "Finance & Accounting", current: 180, benchmark: 150 },
-  { category: "Communication", current: 95, benchmark: 80 },
-  { category: "DevOps & Infrastructure", current: 420, benchmark: 380 },
-  { category: "Security & Compliance", current: 150, benchmark: 120 },
-];
+interface StackData {
+  hasSnapshot: boolean;
+  snapshotAge: number | null;
+  connectors: ConnectorSummary[];
+  kbDomains: string[];
+  recommendations: Recommendation[];
+  stackHealth: { score: number; summary: string };
+  topGaps: string[];
+  error?: string;
+}
+
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  high:     "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  medium:   "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  low:      "bg-slate-500/10 text-slate-400 border-slate-500/20",
+};
+
+const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
 export default function StackIntelligence() {
-  const stackScore = 72;
-  const totalSpend = costBreakdown.reduce((s, c) => s + c.current, 0);
-  const benchmarkSpend = costBreakdown.reduce((s, c) => s + c.benchmark, 0);
-  const circumference = 2 * Math.PI * 58;
-  const offset = circumference - (stackScore / 100) * circumference;
-  const scoreColor = stackScore >= 80 ? "#00ff88" : stackScore >= 50 ? "#ffb800" : "#ff3355";
+  const apiBase = useApiBase();
+  const [data, setData]       = useState<StackData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter]   = useState<"all" | "critical" | "high" | "medium" | "low">("all");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/api/stack/intelligence`, { credentials: "include" });
+      if (res.ok) setData(await res.json() as StackData);
+    } finally { setLoading(false); }
+  }, [apiBase]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const scoreColor = !data ? "text-slate-400"
+    : data.stackHealth.score >= 80 ? "text-emerald-400"
+    : data.stackHealth.score >= 50 ? "text-amber-400" : "text-rose-400";
+
+  const filtered = (data?.recommendations || [])
+    .filter(r => filter === "all" || r.priority === filter)
+    .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99));
 
   return (
-    <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-display font-bold text-white text-glow flex items-center gap-3">
-          <Brain className="w-8 h-8 text-purple-400" />
-          Stack Intelligence
-        </h1>
-        <p className="text-slate-500 mt-1">Strategic advisor for your tech stack — coverage, gaps, and optimization.</p>
+    <div className="max-w-6xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-white text-glow">Stack Intelligence</h1>
+          <p className="text-slate-500 mt-1">Live recommendations generated by Apphia from your real environment data.</p>
+        </div>
+        <Button variant="outline" onClick={() => void load()} disabled={loading} size="sm" className="flex items-center gap-2">
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          Re-analyze
+        </Button>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="p-6 flex flex-col items-center h-full">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6">Stack Health Score</h3>
-            <div className="relative" style={{ width: 140, height: 140 }}>
-              <svg viewBox="0 0 130 130" className="w-full h-full -rotate-90">
-                <circle cx="65" cy="65" r="58" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
-                <motion.circle
-                  cx="65" cy="65" r="58" fill="none"
-                  stroke={scoreColor}
-                  strokeWidth="8"
-                  strokeDasharray={circumference}
-                  strokeLinecap="round"
-                  initial={{ strokeDashoffset: circumference }}
-                  animate={{ strokeDashoffset: offset }}
-                  transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ filter: `drop-shadow(0 0 8px ${scoreColor}60)` }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-white font-display">{stackScore}</span>
-                <span className="text-xs text-slate-500">/ 100</span>
-              </div>
-            </div>
-            <div className="mt-4 space-y-2 text-center">
-              <p className="text-sm text-amber-400">3 gaps identified</p>
-              <p className="text-sm text-emerald-400">8 apps connected</p>
-              <p className="text-sm text-cyan-400">1 redundancy found</p>
-            </div>
+      {/* Status strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Stack Health", val: loading ? "—" : `${data?.stackHealth.score ?? 0}/100`, color: scoreColor },
+          { label: "Connectors", val: loading ? "—" : String(data?.connectors.length ?? 0), color: "text-sky-400" },
+          { label: "Recommendations", val: loading ? "—" : String(data?.recommendations.length ?? 0), color: "text-violet-400" },
+          { label: "Snapshot", val: loading ? "—" : data?.hasSnapshot ? `${data.snapshotAge ?? 0}m ago` : "Missing", color: data?.hasSnapshot ? "text-emerald-400" : "text-amber-400" },
+        ].map(({ label, val, color }) => (
+          <Card key={label} className="p-4 bg-[#0d0f17] border border-white/[0.06]">
+            <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
+            <p className={`text-2xl font-bold ${color}`}>{val}</p>
           </Card>
-        </motion.div>
+        ))}
+      </div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="p-6 h-full">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              Cost Efficiency
+      {/* No snapshot notice */}
+      {!loading && !data?.hasSnapshot && (
+        <Card className="p-6 mb-6 bg-amber-500/5 border border-amber-500/20">
+          <div className="flex items-start gap-4">
+            <Camera className="w-8 h-8 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-300 mb-1">No Environment Snapshot Captured</h3>
+              <p className="text-sm text-slate-400">Capture a snapshot to unlock fully personalized stack analysis. Without it, recommendations are based on connected systems only.</p>
+              <Link href="/settings">
+                <Button size="sm" className="mt-3" variant="outline">Go to Settings → Capture Snapshot</Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recommendations list */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300">
+              Apphia Recommendations {filtered.length > 0 && <span className="text-slate-500 font-normal">({filtered.length})</span>}
             </h3>
-            <div className="space-y-4">
-              <div className="text-center mb-4">
-                <p className="text-3xl font-bold text-white font-display">${totalSpend}<span className="text-lg text-slate-500">/mo</span></p>
-                <p className="text-xs text-slate-500 mt-1">vs benchmark ${benchmarkSpend}/mo</p>
-              </div>
-              {costBreakdown.map((item, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">{item.category}</span>
-                    <span className={item.current > item.benchmark ? "text-amber-400" : "text-emerald-400"}>
-                      ${item.current}/mo
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
-                    <motion.div
-                      className={`h-full rounded-full ${item.current > item.benchmark ? "bg-amber-500" : "bg-emerald-500"}`}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(item.current / 500) * 100}%` }}
-                      transition={{ delay: 0.5 + i * 0.1, duration: 0.6 }}
-                    />
-                  </div>
-                </div>
+            <div className="flex gap-1">
+              {(["all","critical","high","medium","low"] as const).map(f => (
+                <button key={f} onClick={() => setFilter(f)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${filter === f ? "bg-violet-600 text-white" : "text-slate-500 hover:text-slate-300"}`}>
+                  {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
               ))}
             </div>
-          </Card>
-        </motion.div>
+          </div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="p-6 h-full">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <TrendingDown className="w-4 h-4 text-red-400" />
-              Redundancy Detection
+          {loading ? (
+            <div className="space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-white/[0.04] rounded-xl animate-pulse" />)}</div>
+          ) : filtered.length === 0 ? (
+            <Card className="p-10 text-center bg-[#0d0f17] border border-white/[0.06]">
+              <Brain className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">
+                {data?.recommendations.length === 0
+                  ? "No recommendations yet. Connect systems or capture an environment snapshot to begin analysis."
+                  : "No recommendations at this priority level."}
+              </p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((rec, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <Card className="p-5 bg-[#0d0f17] border border-white/[0.06] hover:border-white/[0.12] transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="text-sm font-semibold text-white">{rec.title}</span>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${PRIORITY_COLORS[rec.priority]}`}>
+                          {rec.priority.toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-slate-500 bg-white/[0.04] px-2 py-0.5 rounded-full">{rec.category}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400 mb-3 leading-relaxed">{rec.rationale}</p>
+                    <div className="flex items-start gap-2 bg-white/[0.03] rounded-lg p-3 mb-2">
+                      <ArrowRight className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-slate-300">{rec.action}</p>
+                    </div>
+                    {rec.estimatedImpact && (
+                      <div className="flex items-center gap-1.5">
+                        <Zap className="w-3 h-3 text-emerald-400" />
+                        <span className="text-xs text-emerald-400">{rec.estimatedImpact}</span>
+                      </div>
+                    )}
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right sidebar */}
+        <div className="space-y-4">
+          <Card className="p-5 bg-[#0d0f17] border border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" /> Stack Health
             </h3>
-            {redundancies.length === 0 ? (
-              <div className="text-center py-8 text-slate-600">
-                <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-emerald-400/50" />
-                <p>No redundancies detected</p>
+            {loading ? <div className="h-20 bg-white/[0.04] rounded animate-pulse" /> : (
+              <>
+                <div className="flex items-end gap-2 mb-2">
+                  <span className={`text-4xl font-bold ${scoreColor}`}>{data?.stackHealth.score}</span>
+                  <span className="text-slate-500 mb-1">/ 100</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">{data?.stackHealth.summary}</p>
+              </>
+            )}
+          </Card>
+
+          {(data?.topGaps || []).length > 0 && (
+            <Card className="p-5 bg-[#0d0f17] border border-white/[0.06]">
+              <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" /> Top Gaps
+              </h3>
+              <div className="space-y-2">
+                {data?.topGaps.map((g, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-slate-400">
+                    <span className="w-4 h-4 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">{i + 1}</span>
+                    {g}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <Card className="p-5 bg-[#0d0f17] border border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <Layers className="w-4 h-4" /> Connected Systems
+            </h3>
+            {loading ? <div className="h-24 bg-white/[0.04] rounded animate-pulse" /> : (data?.connectors || []).length === 0 ? (
+              <div className="text-center py-4">
+                <WifiOff className="w-6 h-6 text-slate-600 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No connectors yet.</p>
+                <Link href="/connectors">
+                  <span className="text-xs text-violet-400 hover:underline cursor-pointer">Set up connectors →</span>
+                </Link>
               </div>
             ) : (
-              <div className="space-y-3">
-                {redundancies.map((r, i) => (
-                  <div key={i} className="p-3 rounded-lg border border-amber-500/10 bg-amber-500/5">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-400" />
-                      <span className="text-sm font-medium text-amber-400">Potential Overlap</span>
+              <div className="space-y-2">
+                {data?.connectors.map(c => (
+                  <div key={c.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {c.status === "healthy"
+                        ? <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                        : <WifiOff className="w-3.5 h-3.5 text-rose-400" />}
+                      <span className="text-xs text-slate-400 truncate">{c.name}</span>
                     </div>
-                    <p className="text-sm text-slate-300">{r.apps.join(" & ")}</p>
-                    <p className="text-xs text-slate-500 mt-1">{r.overlap}</p>
-                    <p className="text-xs text-amber-400 font-semibold mt-2">Est. wasted: {r.estimatedWaste}</p>
+                    <span className={`text-xs font-medium ${c.uptime >= 95 ? "text-emerald-400" : c.uptime >= 80 ? "text-amber-400" : "text-rose-400"}`}>{c.uptime}%</span>
                   </div>
                 ))}
               </div>
             )}
-
-            <div className="mt-6 p-3 rounded-lg hud-element">
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Consolidation Savings</p>
-              <p className="text-lg font-bold text-cyan-400 font-display">
-                ${totalSpend - benchmarkSpend}<span className="text-sm text-slate-500">/mo possible</span>
-              </p>
-            </div>
           </Card>
-        </motion.div>
-      </div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-        <h2 className="text-xl font-display font-bold text-white mb-4 flex items-center gap-2">
-          <Layers className="w-5 h-5 text-cyan-400" />
-          Gap Analysis by Category
-        </h2>
-        <div className="space-y-4">
-          {stackCategories.map((cat, i) => (
-            <motion.div
-              key={cat.name}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 + i * 0.05 }}
-            >
-              <Card className="p-5">
-                <h3 className="font-bold text-white text-lg mb-3">{cat.name}</h3>
-                <div className="space-y-3">
-                  {cat.have.length > 0 && (
-                    <div className="space-y-1.5">
-                      {cat.have.map((app, j) => (
-                        <div key={j} className="flex items-center gap-2 text-sm">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <span className="text-slate-300">{app.name}</span>
-                          <span className="text-slate-600">— {app.desc}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+          {(data?.kbDomains || []).length > 0 && (
+            <Card className="p-5 bg-[#0d0f17] border border-white/[0.06]">
+              <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+                <Brain className="w-4 h-4" /> KB Domains Consulted
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {data?.kbDomains.map(d => (
+                  <span key={d} className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20">{d}</span>
+                ))}
+              </div>
+            </Card>
+          )}
 
-                  {cat.missing.length > 0 && (
-                    <div className="space-y-1.5">
-                      {cat.missing.map((item, j) => (
-                        <div key={j} className="flex items-start gap-2 text-sm">
-                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="text-amber-400 font-medium">Missing: {item.name}</span>
-                            <p className="text-slate-500 text-xs mt-0.5">{item.reason}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {cat.recommended.length > 0 && (
-                    <div className="space-y-1.5 mt-2 pt-2 border-t border-white/[0.04]">
-                      {cat.recommended.map((rec, j) => (
-                        <div key={j} className="flex items-start gap-2 text-sm">
-                          <Lightbulb className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-cyan-400 font-medium">{rec.name}</span>
-                              <Badge variant={rec.priority === "high" ? "error" : "warning"} className="text-[10px]">
-                                {rec.priority}
-                              </Badge>
-                            </div>
-                            <p className="text-slate-500 text-xs mt-0.5">{rec.rationale}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+          {data?.error && (
+            <Card className="p-4 bg-rose-500/5 border border-rose-500/20">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-rose-300">{data.error}</p>
+              </div>
+            </Card>
+          )}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

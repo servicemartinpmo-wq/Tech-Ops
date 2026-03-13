@@ -248,4 +248,40 @@ router.post("/apphia/conversations/:id/messages", async (req, res: Response): Pr
   res.end();
 });
 
+// ── Voice Message (non-streaming, for Voice Companion) ───────────────────────
+
+router.post("/apphia/voice-message", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { message } = req.body as { message?: string };
+  if (!message?.trim()) { res.status(400).json({ error: "message is required" }); return; }
+
+  const [userRecord] = await db.select().from(usersTable).where(eq(usersTable.id, authReq.user.id)).limit(1);
+  let apphiaProfile: Parameters<typeof buildApphiaSystemPrompt>[0] = null;
+  if (userRecord?.preferencesProfile) {
+    try { apphiaProfile = JSON.parse(userRecord.preferencesProfile); } catch { /* default */ }
+  }
+
+  const systemPrompt = buildApphiaSystemPrompt(apphiaProfile);
+  const voiceSystemNote = "\n\nIMPORTANT: This is a voice interaction. Be concise — 2–4 sentences maximum per response. Get straight to the point. No bullet lists, no markdown formatting.";
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 300,
+      messages: [
+        { role: "system", content: systemPrompt + voiceSystemNote },
+        { role: "user",   content: message.trim() },
+      ],
+    });
+
+    const response = completion.choices[0]?.message?.content?.trim() || "I couldn't process that. Please try again.";
+    res.json({ response });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: msg });
+  }
+});
+
 export default router;
