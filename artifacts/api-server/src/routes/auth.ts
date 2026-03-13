@@ -49,6 +49,39 @@ router.get("/auth/user", (req: Request, res: Response) => {
   res.json(GetCurrentAuthUserResponse.parse({ user: req.isAuthenticated() ? req.user : null }));
 });
 
+// ── Update Profile ─────────────────────────────────────────────────────────────
+
+router.patch("/auth/profile", async (req: Request, res: Response): Promise<void> => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { firstName, lastName } = req.body as { firstName?: string; lastName?: string };
+  await db.update(usersTable)
+    .set({ firstName: firstName ?? null, lastName: lastName ?? null, updatedAt: new Date() })
+    .where(eq(usersTable.id, (req.user as { id: string }).id));
+  req.user = { ...(req.user as object), firstName, lastName } as Express.User;
+  res.json({ ok: true });
+});
+
+// ── Change Password ────────────────────────────────────────────────────────────
+
+router.patch("/auth/password", async (req: Request, res: Response): Promise<void> => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!newPassword || newPassword.length < 8) { res.status(400).json({ error: "New password must be at least 8 characters" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, (req.user as { id: string }).id));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  if (user.passwordHash) {
+    if (!currentPassword) { res.status(400).json({ error: "Current password is required" }); return; }
+    const valid = await bcryptjs.compare(currentPassword, user.passwordHash);
+    if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
+  }
+
+  const hash = await bcryptjs.hash(newPassword, 12);
+  await db.update(usersTable).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+  res.json({ ok: true });
+});
+
 // ── Logout ────────────────────────────────────────────────────────────────────
 
 router.get("/logout", async (req: Request, res: Response) => {
