@@ -7,6 +7,48 @@ Full-stack autonomous technology operations platform powered by the **Apphia Eng
 **Brand**: "Tech-Ops by Martin PMO" — Apphia is the knowledge system/engine, never called "AI", "assistant", or "bot".
 **Design**: Soft blues, warm neutrals, gentle gradients, light mode only.
 
+## New Backend Modules (March 2026)
+
+### App & Web Hosting (`/api/hosting/`)
+- `GET/POST /api/hosting/projects` — CRUD for hosted app/web/API/static projects
+- `GET/PATCH/DELETE /api/hosting/projects/:id` — Single project management
+- `GET/POST /api/hosting/domains` — Domain registration with auto-generated DNS records
+- `POST /api/hosting/domains/:id/verify` — Domain verification + auto SSL issuance
+- `DELETE /api/hosting/domains/:id` — Domain removal
+- DB tables: `hosted_projects`, `hosted_domains`
+
+### Encrypted Screenshare Sessions (`/api/remote/screenshare/`)
+- `POST /api/remote/screenshare` — Create AES-256-GCM encrypted screenshare session
+- `POST /api/remote/screenshare/:id/action` — Submit encrypted action (login, navigate, fill_form, etc.)
+- `POST /api/remote/screenshare/:id/decrypt-log` — Decrypt full action log (requires session key)
+- `GET /api/remote/screenshare/:id` — Session status/metadata (no plaintext action data)
+- `POST /api/remote/screenshare/:id/close` — Close session
+- All credentials/passwords encrypted at rest; session key shown only once at creation
+
+### Company Vault (`/api/company-vault/`)
+- `GET /api/company-vault/documents` — List docs (supports ?category, ?tag, ?search filters)
+- `GET /api/company-vault/documents/:id` — Doc metadata (no content without passphrase)
+- `POST /api/company-vault/documents/:id/unlock` — Decrypt and retrieve content
+- `POST /api/company-vault/documents` — Store encrypted company document
+- `PATCH /api/company-vault/documents/:id` — Update doc (re-encrypts if new content provided)
+- `DELETE /api/company-vault/documents/:id` — Permanently delete
+- `GET /api/company-vault/categories` — List categories (legal, financial, hr, credentials, policy, contracts, compliance, technical, general)
+- DB table: `company_vault_documents`; AES-256-GCM with scrypt key derivation
+
+### Recommendation Engine (`/api/apphia/recommend/`)
+- `POST /api/apphia/recommend` — Structured recommendation with certainty scoring (high/medium/low/uncertain)
+- Returns: recommendation, confidence %, alternatives, caveats, follow-up questions
+- When uncertain: returns "I don't know" response with suggested next steps (no guessing)
+- `GET /api/apphia/recommend/domains` — Available knowledge domains
+
+### Security Hardening (`artifacts/api-server/src/middleware/security.ts`)
+- Per-route rate limiting (e.g. auth: 20/min, hosting: 60/min, default: 200/min)
+- Security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, CSP
+- X-Powered-By removed
+- Input sanitizer: strips XSS vectors from all request body fields (deep, recursive)
+- Request size guard: rejects payloads > 10 MB before parsing
+- Global error handler: never leaks stack traces in production
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
