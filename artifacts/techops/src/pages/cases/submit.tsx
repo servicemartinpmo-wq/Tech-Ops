@@ -136,7 +136,7 @@ export default function SubmitCase() {
     }
   };
 
-  const hasEnvironmentData = osInfo || techStack.length > 0 || activeServices.length > 0;
+  const hasEnvironmentData = osInfo || techStack.length > 0 || activeServices.length > 0 || !!environment;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
