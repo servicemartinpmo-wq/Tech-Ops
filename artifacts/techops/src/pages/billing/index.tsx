@@ -282,7 +282,7 @@ export default function Billing() {
         {PLANS.map((plan, i) => (
           <motion.div key={plan.key} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }} className="flex">
-            <Card className={`p-6 relative flex flex-col w-full ${plan.popular ? "border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.12)]" : ""}`}>
+            <Card className={`p-6 relative flex flex-col w-full ${"popular" in plan && plan.popular ? "border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.12)]" : ""}`}>
               {"popular" in plan && plan.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-violet-500 to-indigo-600 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-1 shadow-sm whitespace-nowrap">
                   <Sparkles className="w-3 h-3" /> Most Popular
@@ -321,7 +321,7 @@ export default function Billing() {
                 className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all mt-auto ${
                   plan.key === "enterprise"
                     ? `border ${plan.border} ${plan.color} hover:${plan.bg}`
-                    : plan.popular
+                    : ("popular" in plan && plan.popular)
                     ? "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.2)]"
                     : "bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08]"
                 }`}>

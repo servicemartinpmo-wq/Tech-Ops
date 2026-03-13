@@ -86,7 +86,8 @@ export default function VoicePanel() {
 
   const startListening = useCallback(() => {
     if (!SpeechRecognitionAPI || isMuted) return;
-    const recog = new SpeechRecognitionAPI();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recog = new SpeechRecognitionAPI() as any;
     recog.lang = "en-US";
     recog.interimResults = false;
     recog.maxAlternatives = 1;
@@ -94,8 +95,8 @@ export default function VoicePanel() {
 
     recog.onstart  = () => setIsListening(true);
     recog.onend    = () => setIsListening(false);
-    recog.onerror  = (e) => { setIsListening(false); setError(`Speech error: ${e.error}`); };
-    recog.onresult = (e) => {
+    recog.onerror  = (e: { error: string }) => { setIsListening(false); setError(`Speech error: ${e.error}`); };
+    recog.onresult = (e: { results: { [key: number]: { [key: number]: { transcript: string } } } }) => {
       const spoken = e.results[0]?.[0]?.transcript?.trim();
       if (spoken) void sendMessage(spoken);
     };

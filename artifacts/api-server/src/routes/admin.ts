@@ -26,7 +26,8 @@ router.get("/admin/users", requireRole("admin"), handle(async (_req, res) => {
   const users = await db.select({
     id: usersTable.id,
     email: usersTable.email,
-    name: usersTable.name,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
     role: usersTable.role,
     subscriptionTier: usersTable.subscriptionTier,
     createdAt: usersTable.createdAt,
@@ -52,7 +53,7 @@ router.patch("/admin/users/:id/role", requireRole("admin"), handle(async (req, r
     res.status(400).json({ error: "Invalid role", validRoles });
     return;
   }
-  await db.update(usersTable).set({ role }).where(eq(usersTable.id, req.params.id));
+  await db.update(usersTable).set({ role }).where(eq(usersTable.id, String(req.params.id)));
   res.json({ success: true, role });
 }));
 
@@ -63,7 +64,7 @@ router.patch("/admin/users/:id/tier", requireRole("admin"), handle(async (req, r
     res.status(400).json({ error: "Invalid tier", validTiers });
     return;
   }
-  await db.update(usersTable).set({ subscriptionTier: tier }).where(eq(usersTable.id, req.params.id));
+  await db.update(usersTable).set({ subscriptionTier: tier }).where(eq(usersTable.id, String(req.params.id)));
   res.json({ success: true, tier });
 }));
 
@@ -165,11 +166,12 @@ router.post("/admin/kb", requireRole("admin"), handle(async (req, res) => {
     res.status(400).json({ error: "title, content, and domain are required" }); return;
   }
   const [node] = await db.insert(knowledgeNodesTable).values({
+    externalId: `admin-${Date.now()}`,
     title: title.trim(),
-    content: content.trim(),
+    description: content.trim(),
     domain: domain.trim(),
     tags: tags || [],
-    nodeType: nodeType || "article",
+    type: nodeType || "article",
   }).returning();
   res.status(201).json(node);
 }));

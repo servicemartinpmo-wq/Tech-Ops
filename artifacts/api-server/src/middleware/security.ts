@@ -3,14 +3,19 @@ import type { Request, Response, NextFunction, ErrorRequestHandler } from "expre
 const RATE_LIMIT_WINDOWS = new Map<string, { count: number; resetAt: number }>();
 
 const ROUTE_LIMITS: Record<string, { max: number; windowMs: number }> = {
-  "/api/auth":            { max: 20,  windowMs: 60_000 },
-  "/api/vault":           { max: 30,  windowMs: 60_000 },
-  "/api/company-vault":   { max: 30,  windowMs: 60_000 },
-  "/api/remote":          { max: 20,  windowMs: 60_000 },
-  "/api/hosting":         { max: 60,  windowMs: 60_000 },
-  "/api/apphia":          { max: 40,  windowMs: 60_000 },
-  "/api/cases":           { max: 100, windowMs: 60_000 },
-  default:                { max: 200, windowMs: 60_000 },
+  "/api/auth/login":             { max: 5,   windowMs: 60_000 },
+  "/api/auth/register":          { max: 3,   windowMs: 60_000 },
+  "/api/auth/magic-link/request":{ max: 3,   windowMs: 60_000 },
+  "/api/auth/google":            { max: 10,  windowMs: 60_000 },
+  "/api/auth":                   { max: 20,  windowMs: 60_000 },
+  "/api/demo":                   { max: 5,   windowMs: 60_000 },
+  "/api/vault":                  { max: 30,  windowMs: 60_000 },
+  "/api/company-vault":          { max: 30,  windowMs: 60_000 },
+  "/api/remote":                 { max: 20,  windowMs: 60_000 },
+  "/api/hosting":                { max: 60,  windowMs: 60_000 },
+  "/api/apphia":                 { max: 40,  windowMs: 60_000 },
+  "/api/cases":                  { max: 100, windowMs: 60_000 },
+  default:                       { max: 200, windowMs: 60_000 },
 };
 
 function getLimitForPath(path: string) {

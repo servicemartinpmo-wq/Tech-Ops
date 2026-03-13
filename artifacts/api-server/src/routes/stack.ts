@@ -40,18 +40,17 @@ router.get("/stack/intelligence", handle(async (req, res) => {
   const kbDomains = await db.selectDistinct({ domain: knowledgeNodesTable.domain })
     .from(knowledgeNodesTable).orderBy(knowledgeNodesTable.domain);
 
-  const snapshotData = latestSnapshot?.data as Record<string, unknown> | null;
   const hasSnapshot = !!latestSnapshot;
 
   // Build context for Apphia analysis
   const contextLines: string[] = [];
 
-  if (hasSnapshot) {
+  if (hasSnapshot && latestSnapshot) {
     contextLines.push(`## Environment Snapshot (captured ${latestSnapshot.createdAt.toISOString()})`);
-    if (snapshotData?.os) contextLines.push(`- OS: ${JSON.stringify(snapshotData.os)}`);
-    if (snapshotData?.hardware) contextLines.push(`- Hardware: ${JSON.stringify(snapshotData.hardware)}`);
-    if (snapshotData?.software) contextLines.push(`- Software: ${JSON.stringify(snapshotData.software)}`);
-    if (snapshotData?.network) contextLines.push(`- Network: ${JSON.stringify(snapshotData.network)}`);
+    if (latestSnapshot.osInfo) contextLines.push(`- OS: ${latestSnapshot.osInfo}`);
+    if (latestSnapshot.techStack?.length) contextLines.push(`- Tech Stack: ${latestSnapshot.techStack.join(", ")}`);
+    if (latestSnapshot.activeServices?.length) contextLines.push(`- Services: ${latestSnapshot.activeServices.join(", ")}`);
+    if (latestSnapshot.rawContext) contextLines.push(`- Context: ${latestSnapshot.rawContext.slice(0, 500)}`);
   } else {
     contextLines.push("## Environment: No snapshot captured yet.");
   }

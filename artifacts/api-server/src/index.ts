@@ -1,6 +1,7 @@
 import app from "./app";
 import { startProactiveMonitor } from "./kb/proactive-monitor";
 import { startAutomationEngine } from "./automationEngine";
+import { startAlertMonitor } from "./alertMonitor";
 import { seedKnowledgeBase } from "./services/seedKnowledge";
 import { pool } from "@workspace/db";
 
@@ -45,6 +46,7 @@ async function main() {
     console.log(`Server listening on port ${port}`);
     startProactiveMonitor(5 * 60 * 1000);
     startAutomationEngine(5 * 60 * 1000);
+    startAlertMonitor(10 * 60 * 1000);
   });
 }
 

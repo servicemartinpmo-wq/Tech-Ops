@@ -26,6 +26,9 @@ export const usersTable = pgTable("users", {
   subscriptionTier: text("subscription_tier").default("free"),
   preferencesQuizCompleted: text("preferences_quiz_completed").default("false"),
   preferencesProfile: text("preferences_profile"),
+  notificationPreferences: jsonb("notification_preferences"),
+  onboardingCompleted: boolean("onboarding_completed").default(false),
+  cookieConsent: boolean("cookie_consent").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

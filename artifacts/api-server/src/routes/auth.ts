@@ -6,7 +6,7 @@ import { eq, and, gt } from "drizzle-orm";
 import { db, usersTable, magicLinksTable } from "@workspace/db";
 import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
 import {
-  clearSession, createSession, deleteSession, getSessionId,
+  clearSession, createSession, deleteSession, getSessionId, getSession,
   setSessionCookie, getOrigin, SESSION_COOKIE, SESSION_TTL,
   type SessionData,
 } from "../lib/auth";
@@ -351,6 +351,27 @@ router.get("/auth/google/callback", async (req: Request, res: Response) => {
 
   const base = process.env.APP_BASE_PATH || "/techops";
   res.redirect(returnTo !== "/" ? returnTo : `${base}/dashboard`);
+});
+
+// ── PATCH /api/auth/notification-preferences ──────────────────────────────────
+
+router.patch("/auth/notification-preferences", async (req: Request, res: Response) => {
+  const sid = getSessionId(req);
+  if (!sid) return res.status(401).json({ error: "Unauthorized" });
+
+  const session = await getSession(sid);
+  if (!session?.user?.id) return res.status(401).json({ error: "Unauthorized" });
+
+  const { preferences } = req.body as { preferences?: Record<string, boolean> };
+  if (!preferences || typeof preferences !== "object") {
+    return res.status(400).json({ error: "preferences must be a JSON object" });
+  }
+
+  await db.update(usersTable)
+    .set({ notificationPreferences: preferences, updatedAt: new Date() })
+    .where(eq(usersTable.id, session.user.id));
+
+  return res.json({ success: true });
 });
 
 // ── Legacy /login redirect (keep old links working) ───────────────────────────

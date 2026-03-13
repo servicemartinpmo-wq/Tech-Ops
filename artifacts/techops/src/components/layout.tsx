@@ -24,7 +24,9 @@ import {
   BookOpen,
   Lock,
   ArrowRight,
-  ClipboardList
+  ClipboardList,
+  HelpCircle,
+  Server
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -56,6 +58,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -69,9 +72,35 @@ export function Layout({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  useEffect(() => { setMobileOpen(false); }, [location]);
+
   return (
     <div className="flex h-screen bg-[#f0f4f8] overflow-hidden font-sans text-slate-800">
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col relative z-20 shadow-sm">
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile header bar */}
+      <div className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-20 lg:hidden">
+        <div className="flex items-center gap-2">
+          <img src={`${import.meta.env.BASE_URL}images/logo-pmo-ops.png`} alt="PMO-Ops Logo" className="w-7 h-7 object-contain rounded-lg" />
+          <span className="font-bold text-sm text-slate-900">Tech-Ops</span>
+        </div>
+        <button onClick={() => setMobileOpen(true)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+
+      <aside className={`${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} fixed lg:relative z-40 lg:z-20 w-64 h-full bg-white border-r border-slate-200 flex flex-col shadow-sm transition-transform duration-200`}>
         <div className="p-5 flex items-center gap-3 border-b border-slate-100">
           <img
             src={`${import.meta.env.BASE_URL}images/logo-pmo-ops.png`}
@@ -151,6 +180,22 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             <ArrowRight className="w-3 h-3 opacity-70" />
           </Link>
+          <div className="flex items-center gap-1.5">
+            <a
+              href="mailto:support@techopspmo.com"
+              className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              Get Support
+            </a>
+            <Link
+              href="/status"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium text-emerald-500 hover:bg-emerald-50 transition-colors"
+              title="System Status"
+            >
+              <Server className="w-3.5 h-3.5" />
+            </Link>
+          </div>
           <button
             onClick={logout}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
@@ -161,9 +206,9 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 relative overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#f0f4f8]">
-        <div className="fixed top-0 left-64 right-0 h-[300px] bg-gradient-to-b from-sky-500/[0.04] via-transparent to-transparent pointer-events-none z-0" />
-        <div className="relative z-10 min-h-full p-6 max-w-7xl mx-auto">
+      <main className="flex-1 relative overflow-y-auto overflow-x-hidden custom-scrollbar bg-[#f0f4f8] pt-14 lg:pt-0">
+        <div className="fixed top-0 left-0 lg:left-64 right-0 h-[300px] bg-gradient-to-b from-sky-500/[0.04] via-transparent to-transparent pointer-events-none z-0" />
+        <div className="relative z-10 min-h-full p-4 lg:p-6 max-w-7xl mx-auto">
           {children}
         </div>
       </main>

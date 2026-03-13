@@ -22,6 +22,7 @@ import securityRouter from "./security";
 import pmoRouter from "./pmo";
 import stackRouter from "./stack";
 import adminRouter from "./admin";
+import demoRouter from "./demo";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(securityRouter);
 router.use(pmoRouter);
 router.use(stackRouter);
 router.use(adminRouter);
+router.use(demoRouter);
 
 export default router;

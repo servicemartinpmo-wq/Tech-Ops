@@ -32,7 +32,7 @@ function SettingsInput({ value, onChange, type = "text", placeholder, disabled, 
 }
 
 export default function Settings() {
-  const { user, refetch } = useAuth();
+  const { user } = useAuth();
   const apiBase = useApiBase();
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -53,6 +53,9 @@ export default function Settings() {
   const [notifyEmail, setNotifyEmail]   = useState(true);
   const [notifyAlerts, setNotifyAlerts] = useState(true);
   const [notifyDigest, setNotifyDigest] = useState(false);
+  const [notifyBusy, setNotifyBusy]     = useState(false);
+  const [notifySuccess, setNotifySuccess] = useState(false);
+  const [notifyError, setNotifyError]   = useState("");
 
   const tabs = [
     { id: "profile",       label: "Profile",         icon: User   },
@@ -72,9 +75,23 @@ export default function Settings() {
       });
       if (!res.ok) { const d = await res.json() as { error?: string }; setProfileError(d.error ?? "Failed to save"); return; }
       setProfileSuccess(true);
-      refetch();
       setTimeout(() => setProfileSuccess(false), 3000);
     } catch { setProfileError("Network error"); } finally { setProfileBusy(false); }
+  };
+
+  const handleSaveNotifications = async () => {
+    setNotifyBusy(true); setNotifyError(""); setNotifySuccess(false);
+    try {
+      const res = await fetch(`${apiBase}/api/auth/notification-preferences`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: { email: notifyEmail, alerts: notifyAlerts, digest: notifyDigest } }),
+      });
+      if (!res.ok) { const d = await res.json() as { error?: string }; setNotifyError(d.error ?? "Failed to save"); return; }
+      setNotifySuccess(true);
+      setTimeout(() => setNotifySuccess(false), 4000);
+    } catch { setNotifyError("Network error"); } finally { setNotifyBusy(false); }
   };
 
   const handleChangePassword = async () => {
@@ -249,7 +266,26 @@ export default function Settings() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-600 mt-4">Notification delivery requires SMTP configuration.</p>
+              <div className="flex items-center justify-between mt-5">
+                <div>
+                  {notifySuccess && (
+                    <span role="status" className="flex items-center gap-1.5 text-emerald-400 text-sm">
+                      <CheckCircle2 className="w-4 h-4" /> Preferences saved successfully
+                    </span>
+                  )}
+                  {notifyError && (
+                    <span className="flex items-center gap-1.5 text-red-400 text-sm">
+                      {notifyError}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => void handleSaveNotifications()} disabled={notifyBusy}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-all disabled:opacity-50 ml-auto">
+                  {notifyBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Preferences
+                </button>
+              </div>
+              <p className="text-xs text-slate-600 mt-3">Notification delivery requires SMTP configuration.</p>
             </Card>
           )}
 

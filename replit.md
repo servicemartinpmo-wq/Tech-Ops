@@ -12,6 +12,7 @@
 - **Design**: Dark theme — deep navy/black backgrounds, violet/sky accent colors, glassmorphism cards.
 - **No character/size limits** on any inputs.
 - **No Zod `max()` constraints** anywhere.
+- **No Stripe** — payment providers are UI-only: Zoho, Billsby, Chargebee, Fastspring, Square.
 
 ## System Architecture
 
@@ -23,8 +24,7 @@ The project is built as a pnpm workspace monorepo using Node.js 24 and TypeScrip
 - **Database**: PostgreSQL with Drizzle ORM + pgvector + pg_trgm
 - **Authentication**: Custom multi-method auth (Google OAuth + Email/Password + Email Magic Link)
 - **Validation**: Zod (v4), `drizzle-zod`
-- **API Codegen**: Orval (from OpenAPI spec)
-- **Payments**: Stripe (stripe-replit-sync integration)
+- **Payments**: UI-only billing page (Zoho, Billsby, Chargebee, Fastspring, Square — no Stripe)
 
 **Monorepo Structure:**
 - `artifacts/api-server/` — Express API server (port 8080)
@@ -47,40 +47,35 @@ The project is built as a pnpm workspace monorepo using Node.js 24 and TypeScrip
 | Logout | `POST /api/auth/logout` | Clears `sid` cookie |
 
 **Session**: cookie `sid`, stored in `sessions` table, TTL 7 days.
-**Auth UI**: `/auth` page — 3 tabs (Google / Password / Magic Link).
+**Auth UI**: `/auth` page — 3 tabs (Google / Password / Magic Link). Registration has ToS checkbox.
 
 **Env vars needed for full auth:**
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Google OAuth)
 - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `SMTP_PORT` (Magic Link email)
 
-## Stripe Billing
+## Database Schema
 
-4 live Stripe products (created via bootstrap, synced to stripe schema):
-| Tier | Monthly | Price ID |
-|------|---------|----------|
-| Starter | $49 | price_1TAbA7CwnP0L8Awz3LsbJKuq |
-| Professional | $149 | price_1TAbA7CwnP0L8AwzLI1N2aqs |
-| Business | $399 | price_1TAbA8CwnP0L8Awzruw4ILlg |
-| Enterprise | $999 | price_1TAbA8CwnP0L8AwzbLJ99R7b |
+Key columns added via `ALTER TABLE` (raw SQL):
+- `users.notification_preferences` (jsonb) — email/alert/digest preferences
+- `users.onboarding_completed` (boolean) — first-login wizard
+- `users.cookie_consent` (boolean) — GDPR consent
 
-Billing page deduplicates products by tier name (keeps highest price variant).
-
-**Tier feature gating:**
-- `starter` — base features
-- `professional` — analytics, advanced_diagnostics
-- `business` — analytics, advanced_diagnostics, full_diagnostics
-- `enterprise` — all_features
+DB command: `psql $DATABASE_URL -c "ALTER TABLE..."` for non-interactive additions.
+Drizzle push: `pnpm --filter @workspace/db run push` (interactive; use force flag for conflicts).
 
 ## Key Pages & Routes
 
 | Route | Auth | Description |
 |-------|------|-------------|
-| `/` | Public | Landing page |
-| `/auth` | Public | 3-tab auth page |
+| `/` | Public | Landing page with social proof, stats, testimonials |
+| `/auth` | Public | 3-tab auth page with ToS checkbox |
+| `/privacy` | Public | Privacy Policy |
+| `/terms` | Public | Terms of Service |
+| `/status` | Public | Live platform health status |
 | `/dashboard` | Protected | Case stats, ticket queue |
 | `/cases` | Protected | Support ticket list |
 | `/cases/submit` | Protected | New case form |
-| `/billing` | Protected | 4-tier subscription page |
+| `/billing` | Protected | 4-tier subscription page (UI-only) |
 | `/hosting` | Protected | App/web project hosting |
 | `/admin` | Admin only | User mgmt, platform stats, KB admin |
 | `/security` | Protected | Security dashboard |
@@ -95,7 +90,7 @@ Billing page deduplicates products by tier name (keeps highest price variant).
 | `/kb` | Protected | Knowledge base |
 | `/secure-vault` | Protected | Encrypted document vault |
 | `/remote-assistance` | Protected | Remote control sessions |
-| `/settings` | Protected | User settings |
+| `/settings` | Protected | User settings (profile, password, notifications) |
 | `/apphia/chat` | Protected | Apphia chat interface |
 
 ## Key Features
@@ -114,11 +109,18 @@ Billing page deduplicates products by tier name (keeps highest price variant).
 12. **Admin Panel**: User list + tier/role mgmt, platform stats, KB admin.
 13. **Analytics Dashboard**: Recharts multi-tab dashboard (overview, cases, pipeline, errors).
 14. **Remote Control**: Permission-scoped sandbox with command guardrails and audit log.
+15. **AlertMonitor**: Runs every 10 min — connector health degradation + SLA approaching/breach + critical-case-undiagnosed checks.
+16. **AutomationEngine**: Runs every 5 min — evaluates automation rules and triggers actions.
+17. **Onboarding Wizard**: 4-step modal (Welcome → Snapshot → Connect → Preferences) shown after first login.
+18. **Cookie Consent**: GDPR-compliant banner with localStorage persistence.
+19. **Demo Mode**: `POST /api/demo/session` creates a temporary demo user with seeded case data. Landing page has "Try Demo" button.
+20. **Rate Limiting**: Auth endpoints: login=5/min, register=3/min, magic-link=3/min, demo=5/min.
+21. **Error Boundary**: React error boundary wrapping all routes for graceful crash recovery.
+22. **Mobile Sidebar**: Collapsible sidebar on mobile (<lg) with hamburger menu + overlay.
 
 ## External Dependencies
 
-- **Stripe**: Subscription billing, checkout, customer portal (`stripe-replit-sync`)
-- **OpenAI**: Apphia Engine (GPT-4o), voice processing
+- **OpenAI**: Apphia Engine (GPT-4o), voice processing (via AI_INTEGRATIONS_OPENAI env vars)
 - **PostgreSQL extensions**: `pgvector`, `pg_trgm`
 - **Nodemailer**: Magic link emails (optional — dev mode returns link directly)
 - **Google OAuth**: Social login (requires `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
@@ -126,6 +128,7 @@ Billing page deduplicates products by tier name (keeps highest price variant).
 ## DB Commands
 
 ```bash
-pnpm --filter @workspace/db run push        # Sync schema
-pnpm --filter @workspace/db exec tsc --build  # Rebuild TS types
+pnpm --filter @workspace/db run push        # Sync schema (interactive)
+psql $DATABASE_URL -c "ALTER TABLE ..."     # Non-interactive column adds
+cd lib/db && npx tsc -p tsconfig.json       # Rebuild TS types for DB package
 ```

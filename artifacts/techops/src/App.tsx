@@ -7,6 +7,9 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Layout } from "@/components/layout";
 import { VoiceOrb } from "@/components/voice-orb";
 import { TicketQueuePanel } from "@/components/ticket-queue-panel";
+import { CookieConsent } from "@/components/cookie-consent";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { ErrorBoundary } from "@/components/error-boundary";
 import Landing from "@/pages/landing";
 import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
@@ -34,17 +37,24 @@ import IssueLog from "@/pages/issue-log";
 import Analytics from "@/pages/analytics";
 import Hosting from "@/pages/hosting";
 import AdminPanel from "@/pages/admin";
+import PrivacyPolicy from "@/pages/privacy";
+import TermsOfService from "@/pages/terms";
+import StatusPage from "@/pages/status";
 import NotFound from "@/pages/not-found";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, staleTime: 30_000 },
+  },
+});
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="w-10 h-10 border-2 border-sky-400 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-[#08090c]">
+        <div className="w-10 h-10 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -55,9 +65,12 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   return (
     <Layout>
-      <Component />
+      <ErrorBoundary>
+        <Component />
+      </ErrorBoundary>
       <TicketQueuePanel />
       <VoiceOrb />
+      <OnboardingWizard />
     </Layout>
   );
 }
@@ -67,6 +80,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsOfService} />
+      <Route path="/status" component={StatusPage} />
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
       <Route path="/cases"><ProtectedRoute component={CasesList} /></Route>
       <Route path="/cases/submit"><ProtectedRoute component={SubmitCase} /></Route>
@@ -103,6 +119,7 @@ function App() {
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
+          <CookieConsent />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

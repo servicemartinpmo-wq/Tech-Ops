@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Redirect, useLocation } from "wouter";
+import { Redirect, useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, AlertCircle, Chrome } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -39,7 +39,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 export default function AuthPage() {
-  const { isAuthenticated, isLoading, refetch } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
   const [tab, setTab]   = useState<Tab>("google");
   const [mode, setMode] = useState<Mode>("login");
@@ -49,6 +49,7 @@ export default function AuthPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName]   = useState("");
   const [showPass, setShowPass]   = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   const [busy, setBusy]     = useState(false);
   const [success, setSuccess] = useState("");
@@ -81,6 +82,7 @@ export default function AuthPage() {
     e.preventDefault();
     clearMessages();
     if (!email.trim() || !password) { setError("Email and password are required"); return; }
+    if (mode === "register" && !tosAccepted) { setError("You must accept the Terms of Service to create an account"); return; }
     setBusy(true);
     try {
       const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
@@ -97,8 +99,7 @@ export default function AuthPage() {
       const data = await res.json() as { error?: string };
       if (!res.ok) { setError(data.error || "Something went wrong"); return; }
 
-      refetch();
-      setLocation(returnTo);
+      window.location.href = returnTo;
     } catch {
       setError("Network error. Please try again.");
     } finally { setBusy(false); }
@@ -219,6 +220,18 @@ export default function AuthPage() {
                       </button>
                     }
                   />
+                  {mode === "register" && (
+                    <label className="flex items-start gap-2.5 cursor-pointer mt-1">
+                      <input type="checkbox" checked={tosAccepted} onChange={e => setTosAccepted(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-violet-500 rounded" />
+                      <span className="text-xs text-slate-400 leading-relaxed">
+                        I agree to the{" "}
+                        <Link href="/terms" target="_blank" className="text-violet-400 hover:underline">Terms of Service</Link>
+                        {" "}and{" "}
+                        <Link href="/privacy" target="_blank" className="text-violet-400 hover:underline">Privacy Policy</Link>
+                      </span>
+                    </label>
+                  )}
                   <button type="submit" disabled={busy}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 text-white font-semibold text-sm hover:from-violet-500 hover:to-violet-400 transition-all disabled:opacity-50 mt-2">
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
@@ -274,9 +287,9 @@ export default function AuthPage() {
 
         <p className="text-center text-xs text-slate-600 mt-6">
           By signing in you agree to our{" "}
-          <a href="#" className="text-slate-400 hover:text-slate-200 transition-colors">Terms of Service</a>
+          <Link href="/terms" className="text-slate-400 hover:text-slate-200 transition-colors">Terms of Service</Link>
           {" "}and{" "}
-          <a href="#" className="text-slate-400 hover:text-slate-200 transition-colors">Privacy Policy</a>.
+          <Link href="/privacy" className="text-slate-400 hover:text-slate-200 transition-colors">Privacy Policy</Link>.
         </p>
       </motion.div>
     </div>

@@ -2,7 +2,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Redirect } from "wouter";
 import { Button } from "@/components/ui";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen, Play, Star, Quote } from "lucide-react";
 import { useRef, useState } from "react";
 
 const BASE = import.meta.env.BASE_URL;
@@ -134,6 +134,104 @@ const pricingPlans = [
   },
 ];
 
+const TESTIMONIALS = [
+  {
+    name: "Sarah K.",
+    role: "CTO, FinScale Ltd",
+    text: "We replaced our entire MSP contract. Apphia caught a storage issue at 3am that would have taken down our payment pipeline. No human woke up — it just fixed it.",
+    stars: 5,
+  },
+  {
+    name: "Marcus T.",
+    role: "Head of IT, Nexon Group",
+    text: "The Stack Intelligence recommendations saved us £28k/year in redundant SaaS tools we didn't even know we were paying for. ROI in month one.",
+    stars: 5,
+  },
+  {
+    name: "Jordan L.",
+    role: "DevOps Lead, Claravent",
+    text: "The diagnostic pipeline is genuinely impressive. It traced a network latency spike to a misconfigured BGP route within 90 seconds. Our senior engineer was floored.",
+    stars: 5,
+  },
+];
+
+function DemoButton() {
+  const [loading, setLoading] = useState(false);
+
+  const handleDemo = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/demo/session", { method: "POST", credentials: "include" });
+      if (res.ok) {
+        const data = await res.json() as { redirect?: string };
+        window.location.href = data.redirect || "/techops/dashboard";
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={() => void handleDemo()}
+      disabled={loading}
+      className="h-14 px-8 flex items-center gap-2.5 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-full text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60"
+    >
+      <Play className="w-4 h-4 text-violet-500" />
+      {loading ? "Loading Demo…" : "Try Demo"}
+    </button>
+  );
+}
+
+function SocialProofSection() {
+  return (
+    <section className="relative z-10 bg-white px-4 py-24">
+      <div className="max-w-5xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-500 mb-3">Trusted by IT Leaders</p>
+          <h2 className="font-display text-3xl md:text-4xl font-black text-slate-900">Teams that run leaner with Tech-Ops</h2>
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+          {TESTIMONIALS.map((t, i) => (
+            <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+              className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+              <Quote className="w-5 h-5 text-slate-300 mb-3" />
+              <p className="text-sm text-slate-600 leading-relaxed mb-5">"{t.text}"</p>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-sky-500 flex items-center justify-center text-white text-xs font-bold">
+                  {t.name[0]}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{t.name}</p>
+                  <p className="text-xs text-slate-400">{t.role}</p>
+                </div>
+              </div>
+              <div className="flex gap-0.5 mt-3">
+                {Array.from({ length: t.stars }).map((_, j) => <Star key={j} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />)}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center border-t border-slate-100 pt-12">
+          {[
+            { stat: "93%", label: "Issues resolved automatically" },
+            { stat: "< 90s", label: "Average diagnosis time" },
+            { stat: "£28k", label: "Average annual savings found" },
+            { stat: "99.9%", label: "Platform uptime SLA" },
+          ].map((s, i) => (
+            <motion.div key={i} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}>
+              <p className="text-3xl font-black text-slate-900 font-display">{s.stat}</p>
+              <p className="text-xs text-slate-400 mt-1">{s.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function LightHero({ onLogin }: { onLogin: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll({ target: containerRef });
@@ -205,6 +303,7 @@ function LightHero({ onLogin }: { onLogin: () => void }) {
               Enter the Platform
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
+            <DemoButton />
             <a
               href="#pricing"
               className="h-14 px-8 flex items-center text-slate-600 hover:text-slate-900 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-all shadow-sm"
@@ -490,15 +589,26 @@ function CTASection({ onLogin }: { onLogin: () => void }) {
 function Footer() {
   return (
     <footer className="relative z-10 bg-white border-t border-slate-100 px-8 py-10">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <img src={`${BASE}images/logo-pmo-ops.png`} alt="PMO-Ops" className="w-8 h-8 object-contain rounded-lg" />
-          <span className="font-display font-bold text-slate-900">Tech-Ops <span className="text-xs font-medium text-slate-400">by Martin PMO</span></span>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <img src={`${BASE}images/logo-pmo-ops.png`} alt="PMO-Ops" className="w-8 h-8 object-contain rounded-lg" />
+            <span className="font-display font-bold text-slate-900">Tech-Ops <span className="text-xs font-medium text-slate-400">by Martin PMO</span></span>
+          </div>
+          <p className="text-sm text-slate-400">Powered by the Apphia Engine · Support, Engineered.</p>
+          <div className="flex items-center gap-6 text-sm text-slate-400">
+            <a href="#features" className="hover:text-slate-700 transition-colors">Features</a>
+            <a href="#pricing" className="hover:text-slate-700 transition-colors">Pricing</a>
+            <a href="/status" className="hover:text-slate-700 transition-colors">Status</a>
+          </div>
         </div>
-        <p className="text-sm text-slate-400">Powered by the Apphia Engine · Support, Engineered.</p>
-        <div className="flex items-center gap-6 text-sm text-slate-400">
-          <a href="#features" className="hover:text-slate-700 transition-colors">Features</a>
-          <a href="#pricing" className="hover:text-slate-700 transition-colors">Pricing</a>
+        <div className="border-t border-slate-100 pt-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-slate-400">© 2026 Martin PMO. All rights reserved.</p>
+          <div className="flex items-center gap-5 text-xs text-slate-400">
+            <a href="/privacy" className="hover:text-slate-700 transition-colors">Privacy Policy</a>
+            <a href="/terms" className="hover:text-slate-700 transition-colors">Terms of Service</a>
+            <a href="mailto:support@techopspmo.com" className="hover:text-slate-700 transition-colors">Contact</a>
+          </div>
         </div>
       </div>
     </footer>
@@ -528,6 +638,7 @@ export default function Landing() {
     <div className="min-h-screen bg-white font-sans">
       <LightHero onLogin={handleLogin} />
       <StatsBar />
+      <SocialProofSection />
       <FeatureCarousel />
       <PlatformSection />
       <PricingSection onLogin={handleLogin} />
