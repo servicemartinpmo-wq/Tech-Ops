@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "SY9rPeFRMbpNi-75V7exZ"
+uri = "file://READINESS_REPORT.md"
+type = "text"
+title = "Tech-Ops Launch Readiness Report — March 13, 2026"
