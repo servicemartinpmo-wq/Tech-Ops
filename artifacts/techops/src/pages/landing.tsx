@@ -66,63 +66,69 @@ const features = [
 
 const pricingPlans = [
   {
-    name: "Starter",
-    price: 15,
+    name: "Foundation",
+    price: 149,
     tagline: "Freelancers & solo operators",
+    mspNote: "vs. $100–$150/user MSP basic",
     color: "#0ea5e9",
     features: [
-      "Unlimited on-demand support tickets",
-      "Apphia diagnostics & automated low-risk fixes",
-      "Preventive monitoring & alerts",
-      "Plain-language explanations & reports",
-      "Remote guidance via screenshot/log analysis",
-      "Email escalation (1–24 hr response)",
+      "1 concurrent support ticket slot",
+      "Apphia help desk — on-demand diagnostics & triage",
+      "Remote monitoring & anomaly detection",
+      "Automated low-risk fixes & preventive alerts",
+      "Plain-language explanations & incident reports",
+      "Email escalation support (1–24 hr response)",
     ],
     cta: "Start Free Trial",
   },
   {
-    name: "Professional",
-    price: 49,
-    tagline: "Small business owners & teams",
+    name: "Proactive",
+    price: 349,
+    tagline: "Small teams of 2–15 users",
+    mspNote: "vs. $150–$225/user MSP standard",
     color: "#7c3aed",
     popular: true,
     features: [
-      "Everything in Starter",
-      "Medium-risk action approvals",
-      "Automatic tier escalation for diagnostics",
-      "Priority notifications",
-      "Zapier, Google Workspace & Slack integration",
-      "Priority email support (1–24 hr)",
+      "2 concurrent support ticket slots",
+      "Everything in Foundation",
+      "Advanced cybersecurity monitoring & threat response",
+      "Cloud management (Google Workspace, AWS, Azure)",
+      "Automated backup verification & integrity checks",
+      "Slack, Zapier & full integration suite",
+      "Priority email support (1–8 hr response)",
     ],
     cta: "Start Free Trial",
   },
   {
-    name: "Business",
-    price: 99,
-    tagline: "SMBs with critical systems",
+    name: "Compliance",
+    price: 749,
+    tagline: "SMBs of 15–75 users",
+    mspNote: "vs. $250–$350+/user MSP compliance",
     color: "#059669",
     features: [
-      "Everything in Professional",
-      "High-risk action approvals",
-      "Apphia-guided walkthroughs for complex fixes",
-      "Full connector & API management",
-      "24/7 predictive monitoring & alerts",
-      "Personalized Apphia configuration",
+      "5 concurrent support ticket slots",
+      "Everything in Proactive",
+      "HIPAA / FINRA compliance auditing & reporting",
+      "High-risk action approvals with full audit trail",
+      "24/7 continuous monitoring & escalation",
+      "Full connector & API lifecycle management",
+      "Personalized Apphia Engine configuration",
     ],
     cta: "Start Free Trial",
   },
   {
     name: "Enterprise",
     price: null,
-    tagline: "Large organizations",
+    tagline: "Large organizations, 75+ users",
     color: "#1e293b",
     features: [
+      "Unlimited concurrent ticket slots",
       "Private Apphia Engine license",
-      "Custom workflows & connectors",
-      "Dedicated account integration",
-      "Custom framework development",
-      "SLA-based email support",
-      "Optional 24 hr accelerated response",
+      "Custom compliance frameworks (SOC 2, ISO 27001)",
+      "Dedicated account & integration engineering",
+      "Custom workflows, connectors & playbooks",
+      "SLA-backed support with < 1 hr response",
+      "Optional on-call accelerated response",
     ],
     cta: "Contact Sales",
   },
@@ -407,9 +413,14 @@ function PricingSection({ onLogin }: { onLogin: () => void }) {
 
               <div className="mb-6">
                 {plan.price !== null ? (
-                  <div className="flex items-end gap-1">
-                    <span className="text-4xl font-display font-black text-slate-900">${plan.price}</span>
-                    <span className="text-slate-400 font-medium mb-1">/mo</span>
+                  <div className="space-y-1">
+                    <div className="flex items-end gap-1">
+                      <span className="text-4xl font-display font-black text-slate-900">${plan.price}</span>
+                      <span className="text-slate-400 font-medium mb-1">/mo</span>
+                    </div>
+                    {"mspNote" in plan && plan.mspNote && (
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{plan.mspNote}</p>
+                    )}
                   </div>
                 ) : (
                   <div className="text-4xl font-display font-black text-slate-900">Custom</div>

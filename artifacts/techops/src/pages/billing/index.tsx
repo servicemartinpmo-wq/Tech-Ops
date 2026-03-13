@@ -11,6 +11,7 @@ const PLAN_META: Record<string, {
   icon: React.ComponentType<{ className?: string }>;
   features: string[];
   tagline: string;
+  mspEquiv?: string;
 }> = {
   starter: {
     color: "text-sky-400",
@@ -18,13 +19,14 @@ const PLAN_META: Record<string, {
     border: "border-sky-500/20",
     icon: Zap,
     tagline: "Freelancers & solo operators",
+    mspEquiv: "vs. $100–$150/user MSP basic",
     features: [
-      "Unlimited on-demand support tickets",
-      "Apphia diagnostics & automated low-risk fixes",
-      "Preventive monitoring & alerts",
-      "Plain-language explanations & reports",
-      "Remote guidance via screenshot/log analysis",
-      "Email escalation (1–24 hr response)",
+      "1 concurrent support ticket slot",
+      "Apphia help desk — on-demand diagnostics & triage",
+      "Remote monitoring & anomaly detection",
+      "Automated low-risk fixes & preventive alerts",
+      "Plain-language explanations & incident reports",
+      "Email escalation support (1–24 hr response)",
     ],
   },
   professional: {
@@ -32,14 +34,16 @@ const PLAN_META: Record<string, {
     bg: "bg-violet-500/10",
     border: "border-violet-500/20",
     icon: Brain,
-    tagline: "Small business owners & teams",
+    tagline: "Small teams of 2–15 users",
+    mspEquiv: "vs. $150–$225/user MSP standard",
     features: [
-      "Everything in Starter",
-      "Medium-risk action approvals",
-      "Automatic tier escalation for diagnostics",
-      "Priority notifications",
-      "Zapier, Google Workspace & Slack integration",
-      "Priority email support (1–24 hr)",
+      "2 concurrent support ticket slots",
+      "Everything in Foundation",
+      "Advanced cybersecurity monitoring & threat response",
+      "Cloud management (Google Workspace, AWS, Azure)",
+      "Automated backup verification & integrity checks",
+      "Slack, Zapier & full integration suite",
+      "Priority email support (1–8 hr response)",
     ],
   },
   business: {
@@ -47,14 +51,16 @@ const PLAN_META: Record<string, {
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/20",
     icon: Shield,
-    tagline: "SMBs with critical systems",
+    tagline: "SMBs of 15–75 users",
+    mspEquiv: "vs. $250–$350+/user MSP compliance",
     features: [
-      "Everything in Professional",
-      "High-risk action approvals",
-      "Apphia-guided walkthroughs for complex fixes",
-      "Full connector & API management",
-      "24/7 predictive monitoring & alerts",
-      "Personalized Apphia configuration",
+      "5 concurrent support ticket slots",
+      "Everything in Proactive",
+      "HIPAA / FINRA compliance auditing & reporting",
+      "High-risk action approvals with audit trail",
+      "24/7 continuous monitoring & escalation",
+      "Full connector & API lifecycle management",
+      "Personalized Apphia Engine configuration",
     ],
   },
   enterprise: {
@@ -62,22 +68,23 @@ const PLAN_META: Record<string, {
     bg: "bg-amber-500/10",
     border: "border-amber-500/20",
     icon: Building2,
-    tagline: "Large organizations",
+    tagline: "Large organizations, 75+ users",
     features: [
+      "Unlimited concurrent ticket slots",
       "Private Apphia Engine license",
-      "Custom workflows & connectors",
-      "Dedicated account integration",
-      "Custom framework development",
-      "SLA-based email support",
-      "Optional 24 hr accelerated response",
+      "Custom compliance frameworks (SOC 2, ISO 27001)",
+      "Dedicated account & integration engineering",
+      "Custom workflows, connectors & playbooks",
+      "SLA-backed support with < 1 hr response",
+      "Optional on-call accelerated response",
     ],
   },
 };
 
 const FALLBACK_PLANS = [
-  { name: "Starter", price: "$15", popular: false, key: "starter" },
-  { name: "Professional", price: "$49", popular: true, key: "professional" },
-  { name: "Business", price: "$99", popular: false, key: "business" },
+  { name: "Foundation", price: "$149", popular: false, key: "starter" },
+  { name: "Proactive", price: "$349", popular: true, key: "professional" },
+  { name: "Compliance", price: "$749", popular: false, key: "business" },
   { name: "Enterprise", price: "Custom", popular: false, key: "enterprise" },
 ];
 
@@ -178,16 +185,26 @@ export default function Billing() {
 
                 <div className="mb-6">
                   {"fallbackPrice" in plan && plan.fallbackPrice ? (
-                    <div className="flex items-end gap-1">
-                      <span className="text-4xl font-display font-bold text-white">{plan.fallbackPrice}</span>
-                      {plan.fallbackPrice !== "Custom" && <span className="text-slate-500 font-medium mb-1">/mo</span>}
+                    <div className="space-y-1.5">
+                      <div className="flex items-end gap-1">
+                        <span className="text-4xl font-display font-bold text-white">{plan.fallbackPrice}</span>
+                        {plan.fallbackPrice !== "Custom" && <span className="text-slate-500 font-medium mb-1">/mo</span>}
+                      </div>
+                      {meta.mspEquiv && (
+                        <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase">{meta.mspEquiv}</p>
+                      )}
                     </div>
                   ) : plan.price ? (
-                    <div className="flex items-end gap-1">
-                      <span className="text-4xl font-display font-bold text-white">
-                        {plan.price.unitAmount != null ? `$${Math.round(plan.price.unitAmount / 100)}` : "Custom"}
-                      </span>
-                      {plan.price.unitAmount != null && <span className="text-slate-500 font-medium mb-1">/mo</span>}
+                    <div className="space-y-1.5">
+                      <div className="flex items-end gap-1">
+                        <span className="text-4xl font-display font-bold text-white">
+                          {plan.price.unitAmount != null ? `$${Math.round(plan.price.unitAmount / 100)}` : "Custom"}
+                        </span>
+                        {plan.price.unitAmount != null && <span className="text-slate-500 font-medium mb-1">/mo</span>}
+                      </div>
+                      {meta.mspEquiv && (
+                        <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase">{meta.mspEquiv}</p>
+                      )}
                     </div>
                   ) : (
                     <span className="text-4xl font-display font-bold text-white">—</span>
