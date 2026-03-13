@@ -150,7 +150,7 @@ export default function CasesList() {
             <div className="w-16 h-16 bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4 border border-white/[0.06]">
               <Briefcase className="w-8 h-8 text-slate-600" />
             </div>
-            <h3 className="text-lg font-bold text-white">No cases found</h3>
+            <h3 className="text-lg font-bold text-slate-700">No cases found</h3>
             <p className="text-slate-500 mt-1">Create a new diagnostic case to get started.</p>
           </div>
         ) : (
@@ -162,7 +162,7 @@ export default function CasesList() {
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-xs font-mono text-slate-600">#{c.id.toString().padStart(4, '0')}</span>
-                        <h3 className="font-bold text-white group-hover:text-cyan-400 transition-colors">{c.title}</h3>
+                        <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{c.title}</h3>
                         <Badge variant={STATUS_VARIANTS[c.status] || "neutral"}>
                           {(c.status as string) === "draft" && <FileEdit className="w-3 h-3 mr-1" />}
                           {STATUS_LABELS[c.status] || c.status}

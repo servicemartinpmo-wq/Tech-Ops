@@ -142,7 +142,7 @@ export default function AdminPanel() {
     return (
       <div className="max-w-lg mx-auto pt-20 text-center">
         <Shield className="w-16 h-16 text-rose-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Access Restricted</h2>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Access Restricted</h2>
         <p className="text-slate-400">This panel requires admin role. Contact your platform administrator.</p>
       </div>
     );
@@ -152,7 +152,7 @@ export default function AdminPanel() {
     <div className="max-w-6xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-white text-glow">Admin Panel</h1>
+          <h1 className="text-3xl font-display font-bold text-slate-900">Admin Panel</h1>
           <p className="text-slate-500 mt-1">Platform management — users, stats, and knowledge base administration.</p>
         </div>
         <Button variant="outline" onClick={() => {

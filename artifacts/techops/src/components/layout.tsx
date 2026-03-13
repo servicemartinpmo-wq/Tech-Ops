@@ -61,7 +61,7 @@ const navSections = [
   {
     label: "Account",
     items: [
-      { href: "/kb",               label: "Help Guides",      icon: BookOpen        },
+      { href: "/kb",               label: "Help",             icon: BookOpen        },
       { href: "/secure-vault",     label: "Secure Files",     icon: Lock            },
       { href: "/security",         label: "Security",         icon: ShieldCheck     },
       { href: "/billing",          label: "Plans & Billing",  icon: CreditCard      },

@@ -284,7 +284,7 @@ export default function BatchDiagnostics() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-display font-bold text-white text-glow">Batch Diagnostics</h1>
+        <h1 className="text-3xl font-display font-bold text-slate-900">Run Checks</h1>
         <p className="text-slate-500 mt-1">Execute parallel diagnostic pipelines across multiple cases with tier-based concurrency.</p>
       </motion.div>
 
@@ -302,7 +302,7 @@ export default function BatchDiagnostics() {
                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white font-display">{stat.value}</p>
+                  <p className="text-2xl font-bold text-slate-800 font-display">{stat.value}</p>
                   <p className="text-sm text-slate-500">{stat.label}</p>
                 </div>
               </div>
@@ -319,7 +319,7 @@ export default function BatchDiagnostics() {
             <div className="w-16 h-16 bg-white/[0.03] rounded-full flex items-center justify-center mx-auto mb-4 border border-white/[0.06]">
               <Layers className="w-8 h-8 text-slate-600" />
             </div>
-            <h3 className="text-lg font-bold text-white">No batch jobs yet</h3>
+            <h3 className="text-lg font-bold text-slate-700">No batch jobs yet</h3>
             <p className="text-slate-500 mt-1">Start a batch diagnostic from the Cases page to see results here.</p>
           </div>
         ) : (
@@ -336,7 +336,7 @@ export default function BatchDiagnostics() {
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-mono text-slate-600">BATCH-{batch.id.toString().padStart(4, "0")}</span>
-                        <h3 className="font-bold text-white">{batch.name}</h3>
+                        <h3 className="font-bold text-slate-800">{batch.name}</h3>
                         <Badge variant={getStatusVariant(batch.status)}>{batch.status}</Badge>
                         {batch.status === "running" && (
                           <Loader2 className="w-4 h-4 text-cyan-500 animate-spin" />

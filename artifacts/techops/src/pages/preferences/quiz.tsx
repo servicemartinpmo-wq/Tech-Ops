@@ -35,7 +35,7 @@ export default function PreferencesQuiz() {
           <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
             <CheckCircle2 className="w-10 h-10 text-emerald-400" />
           </div>
-          <h1 className="text-3xl font-display font-bold text-white">Profile Calibrated</h1>
+          <h1 className="text-3xl font-display font-bold text-slate-900">Profile Calibrated</h1>
           <p className="text-slate-500 mt-2 text-lg">Apphia Engine is now tailored to your operational style.</p>
         </motion.div>
 
@@ -66,7 +66,7 @@ export default function PreferencesQuiz() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-cyan-500/10 text-cyan-400 mb-6 border border-cyan-500/20">
           <Settings2 className="w-8 h-8" />
         </div>
-        <h1 className="text-3xl font-display font-bold text-white">Style Calibration</h1>
+        <h1 className="text-3xl font-display font-bold text-slate-900">Style Calibration</h1>
         <p className="text-slate-500 mt-2">Help Apphia Engine understand how you prefer to work.</p>
         
         <div className="flex gap-2 justify-center mt-8">
@@ -86,7 +86,7 @@ export default function PreferencesQuiz() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <h2 className="text-2xl font-display font-bold text-white mb-6">{currentQ.question}</h2>
+              <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">{currentQ.question}</h2>
               <div className="space-y-3">
                 {currentQ.options.map((opt) => {
                   const isSelected = answers[currentQ.id] === opt.value;

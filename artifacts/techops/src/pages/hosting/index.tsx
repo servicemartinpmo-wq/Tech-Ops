@@ -150,7 +150,7 @@ function ProjectCard({ project, apiBase, onDelete }: {
             <Icon className="w-5 h-5 text-violet-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-white">{project.name}</h3>
+            <h3 className="font-semibold text-slate-800">{project.name}</h3>
             <p className="text-xs text-slate-500 mt-0.5 uppercase">{project.type}</p>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function Hosting() {
     <div className="max-w-5xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-white text-glow">App & Web Hosting</h1>
+          <h1 className="text-3xl font-display font-bold text-slate-900">App & Web Hosting</h1>
           <p className="text-slate-500 mt-1">Deploy and manage hosted projects with custom domains and SSL.</p>
         </div>
         <div className="flex gap-3">
@@ -372,7 +372,7 @@ export default function Hosting() {
           <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-4">
             <Globe className="w-8 h-8 text-violet-400" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2">No Hosted Projects</h3>
+          <h3 className="text-lg font-bold text-slate-700 mb-2">No Hosted Projects</h3>
           <p className="text-slate-500 mb-6 max-w-sm mx-auto">Create your first hosted project to start deploying apps and managing custom domains with SSL.</p>
           <Button onClick={() => setShowNew(true)} className="neon-glow">
             <Plus className="w-4 h-4 mr-2" />

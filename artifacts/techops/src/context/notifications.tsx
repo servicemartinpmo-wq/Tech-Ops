@@ -45,7 +45,7 @@ const SEED: AppNotification[] = [
     id: "seed-2",
     type: "info",
     title: "New help article",
-    message: "\"How to speed up a slow Windows PC\" was added to Help Guides.",
+    message: "\"How to speed up a slow Windows PC\" was added to Help.",
     timestamp: new Date(Date.now() - 1000 * 60 * 18),
     read: false,
   },

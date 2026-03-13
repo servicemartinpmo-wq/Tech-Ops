@@ -172,7 +172,7 @@ function KBEntryDetail({ entry, onClose, apiBase }: { entry: KBEntry; onClose: (
             <span className="text-xs font-mono px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.06] text-slate-500">{entry.id}</span>
             <span className="text-xs text-slate-600">{entry.tier}</span>
           </div>
-          <h2 className="font-display font-bold text-white text-lg">{entry.domain} / {entry.subdomain}</h2>
+          <h2 className="font-display font-bold text-slate-900 text-lg">{entry.domain} / {entry.subdomain}</h2>
           <p className="text-sm text-slate-500">{entry.issueType}</p>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/[0.05] text-slate-600 hover:text-white transition-colors">
@@ -343,7 +343,7 @@ export default function KnowledgeBase() {
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold text-white">Knowledge Base</h1>
+          <h1 className="text-3xl font-display font-bold text-slate-900">Help</h1>
           <p className="text-slate-500 mt-1">Apphia Engine — {stats?.totalKBEntries || 0} structured resolution guides across {stats?.domains || 0} technology domains</p>
         </div>
       </div>
