@@ -238,7 +238,7 @@ export function Layout({ children }: { children: ReactNode }) {
               </p>
               <div className="space-y-0.5">
                 {[
-                  { href: "/hosting",  label: "Hosting & Domains", icon: Globe              },
+                  { href: "/site-builder", label: "Site Builder", icon: Globe },
                   { href: "/admin",    label: "Admin Panel",        icon: SlidersHorizontal  },
                 ].map(item => {
                   const isActive = location === item.href || (item.href.length > 1 && location.startsWith(item.href));

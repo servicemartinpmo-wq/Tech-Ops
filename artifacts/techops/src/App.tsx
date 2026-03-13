@@ -36,7 +36,7 @@ import KnowledgeBase from "@/pages/kb";
 import SecureVault from "@/pages/secure-vault";
 import IssueLog from "@/pages/issue-log";
 import Analytics from "@/pages/analytics";
-import Hosting from "@/pages/hosting";
+import SiteBuilder from "@/pages/site-builder";
 import AdminPanel from "@/pages/admin";
 import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
@@ -106,7 +106,7 @@ function Router() {
       <Route path="/secure-vault"><ProtectedRoute component={SecureVault} /></Route>
       <Route path="/issue-log"><ProtectedRoute component={IssueLog} /></Route>
       <Route path="/analytics"><ProtectedRoute component={Analytics} /></Route>
-      <Route path="/hosting"><ProtectedRoute component={Hosting} /></Route>
+      <Route path="/site-builder"><ProtectedRoute component={SiteBuilder} /></Route>
       <Route path="/admin"><ProtectedRoute component={AdminPanel} /></Route>
       <Route component={NotFound} />
     </Switch>
