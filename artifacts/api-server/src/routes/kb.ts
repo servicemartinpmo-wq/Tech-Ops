@@ -4,7 +4,7 @@ import { eq, and, desc, sql, ilike, or, inArray } from "drizzle-orm";
 import { classifySeverity, classifyIntent } from "../kb/knowledge-base";
 import { buildDecisionTree } from "../kb/decision-engine";
 import { getMonitorStats, subscribeToMonitorEvents } from "../kb/proactive-monitor";
-import { buildSearchText, generateLocalEmbedding } from "../services/embeddings";
+import { buildSearchText, generateEmbedding } from "../services/embeddings";
 import { requireRole } from "../middleware/tierGating";
 import type { AuthenticatedRequest } from "../types";
 
@@ -12,7 +12,7 @@ const router: IRouter = Router();
 
 async function vectorSearch(query: string, options?: { domain?: string; limit?: number }): Promise<Array<Record<string, unknown>>> {
   const limit = options?.limit || 10;
-  const queryEmbedding = generateLocalEmbedding(query);
+  const queryEmbedding = await generateEmbedding(query);
   const embeddingStr = `[${queryEmbedding.join(",")}]`;
   const domainFilter = options?.domain
     ? `AND domain ILIKE '${options.domain.replace(/'/g, "''")}'`
@@ -208,7 +208,7 @@ router.post("/kb/entries", requireRole("owner", "admin"), async (req, res: Respo
   }
 
   const searchText = buildSearchText({ domain, subdomain, title, symptoms, resolutionSteps, tags });
-  const embedding = generateLocalEmbedding(searchText);
+  const embedding = await generateEmbedding(searchText);
 
   const [node] = await db.insert(knowledgeNodesTable).values({
     externalId: externalId || `KB-${Date.now()}`,
@@ -268,7 +268,7 @@ router.patch("/kb/entries/:id", requireRole("owner", "admin"), async (req, res: 
       tags: (tags ?? existing.tags ?? []) as string[],
     });
     updates.searchText = searchText;
-    updates.embedding = generateLocalEmbedding(searchText);
+    updates.embedding = await generateEmbedding(searchText);
   }
 
   const [updated] = await db.update(knowledgeNodesTable)

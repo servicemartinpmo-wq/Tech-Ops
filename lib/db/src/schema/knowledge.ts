@@ -20,6 +20,9 @@ const vector = customType<{ data: number[]; driverParam: string; config: { dimen
   },
 });
 
+// Indexes maintained via startup migration in api-server/src/index.ts:
+//   USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)  — pgvector ANN cosine index
+//   USING GIN (search_text gin_trgm_ops)                            — trigram full-text index
 export const knowledgeNodesTable = pgTable("knowledge_nodes", {
   id: serial("id").primaryKey(),
   externalId: text("external_id").notNull().unique(),

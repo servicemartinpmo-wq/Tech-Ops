@@ -55,9 +55,21 @@ async function main() {
   try {
     await pool.query("CREATE EXTENSION IF NOT EXISTS vector");
     await pool.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
-    console.log("PostgreSQL extensions ready (pgvector, pg_trgm)");
+    // ivfflat cosine index on knowledge_nodes.embedding for pgvector ANN search
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS knowledge_nodes_embedding_idx
+      ON knowledge_nodes
+      USING ivfflat (embedding vector_cosine_ops)
+      WITH (lists = 100)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS knowledge_nodes_search_text_trgm_idx
+      ON knowledge_nodes
+      USING GIN (search_text gin_trgm_ops)
+    `);
+    console.log("PostgreSQL extensions and ivfflat cosine index ready (pgvector, pg_trgm)");
   } catch (err) {
-    console.error("Failed to enable PostgreSQL extensions:", err);
+    console.error("Failed to enable PostgreSQL extensions or create indexes:", err);
   }
 
   seedKnowledgeBase()

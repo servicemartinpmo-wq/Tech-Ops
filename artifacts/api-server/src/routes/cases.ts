@@ -12,7 +12,7 @@ import type { Case } from "@workspace/db";
 import { getTierLimits } from "../middleware/tierGating";
 import { buildSystemPrompt, classifySeverity, classifyIntent } from "../kb/knowledge-base";
 import { sendEmail, buildCriticalCaseEmail } from "../emailService";
-import { generateLocalEmbedding } from "../services/embeddings";
+import { generateEmbedding } from "../services/embeddings";
 
 const SLA_HOURS: Record<string, number> = { critical: 4, high: 8, medium: 24, low: 72 };
 function getSlaDeadline(priority: string): Date {
@@ -84,7 +84,7 @@ async function kbSemanticSearch(query: string, domain?: string, limit = 5): Prom
   confidence: number; method: string;
 }>> {
   try {
-    const embedding = generateLocalEmbedding(query);
+    const embedding = await generateEmbedding(query);
     const embeddingStr = `[${embedding.join(",")}]`;
     const domainFilter = domain ? `AND domain ILIKE '${domain.replace(/'/g, "''")}'` : "";
     const rows = await db.execute(sql.raw(`

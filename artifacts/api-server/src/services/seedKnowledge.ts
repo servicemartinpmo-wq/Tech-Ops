@@ -1,6 +1,6 @@
 import { db, knowledgeNodesTable, knowledgeEdgesTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { buildSearchText, generateLocalEmbedding } from "./embeddings";
+import { buildSearchText, generateEmbedding } from "./embeddings";
 import { KB } from "../kb/knowledge-base";
 
 const DOMAIN_RELATIONSHIPS: Record<string, string[]> = {
@@ -34,7 +34,7 @@ export async function seedKnowledgeBase(): Promise<{ nodesCreated: number; edges
       tags: entry.tags,
     });
 
-    const embedding = generateLocalEmbedding(searchText);
+    const embedding = await generateEmbedding(searchText);
 
     const [node] = await db.insert(knowledgeNodesTable).values({
       externalId: entry.id,
