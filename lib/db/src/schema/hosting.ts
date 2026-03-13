@@ -131,6 +131,24 @@ export const VAULT_CATEGORIES = [
 ] as const;
 export type VaultCategory = typeof VAULT_CATEGORIES[number];
 
+export const hostingProviderConnectionsTable = pgTable("hosting_provider_connections", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  provider: text("provider").notNull(),
+  accessToken: text("access_token").notNull(),
+  teamId: text("team_id"),
+  accountId: text("account_id"),
+  connectedUsername: text("connected_username"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("hosting_provider_user_idx").on(table.userId),
+  index("hosting_provider_provider_idx").on(table.provider),
+]);
+
+export type HostingProviderConnection = typeof hostingProviderConnectionsTable.$inferSelect;
+
 export const HOSTED_PROJECT_TYPES = ["app", "web", "api", "static"] as const;
 export type HostedProjectType = typeof HOSTED_PROJECT_TYPES[number];
 
