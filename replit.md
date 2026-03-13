@@ -53,8 +53,8 @@ artifacts-monorepo/
 
 ## Key Features
 
-1. **Apphia Knowledge Graph**: PostgreSQL-backed knowledge layer with pgvector schema (for future OpenAI embeddings) + pg_trgm trigram similarity + full-text search for semantic retrieval. 15 seeded knowledge_nodes across 7 domains (Networking, OS, Database, Cloud, Security, DevOps, Application) with 46 knowledge_edges. CRUD API with RBAC (owner/admin for mutations). `/api/kb/search?q=...` returns ranked results by combined trigram + FTS + confidence score.
-2. **Apphia Diagnostic Pipeline** (7-stage): Classification, typed signal extraction, UDO graph traversal, probabilistic root cause ranking, confidence gating, guardrails/cost gate, resolution synthesis with self-assessment — all via SSE streaming. Myers-Briggs preferences profile injected into all 7 pipeline tiers.
+1. **Apphia Knowledge Graph**: PostgreSQL-backed knowledge layer with pgvector + pg_trgm. 15 seeded nodes across 7 domains with 1536-dim local embeddings. Primary search via pgvector cosine distance (`<=>`) with trigram+FTS fallback. CRUD API with RBAC (owner/admin for mutations). `/api/kb/search?q=...` and `/api/kb/lookup` for UDI decision objects.
+2. **12-Stage Apphia Diagnostic Pipeline**: Stage 1: Classification & Typed Signal Extraction → Stage 2: Quick-Fix Confidence Gate (≥92% triggers early skip) → Stage 3: KB Semantic RAG Retrieval (pgvector evidence correlation) → Stage 4: UDO Graph Traversal & Environment Modeling → Stage 5: Probabilistic Root Cause Ranking (confidence gate ≥90%) → Stage 6: Hypothesis Validation & Evidence Scoring → Stage 7: Guardrails & Safety Validation → Stage 8: Cost Estimation & Approval Gate → Stage 9: Autonomous Action Planning → Stage 10: Resolution Synthesis → Stage 11: Self-Assessment & Failure Prediction → Stage 12: Dual-Output Translation (executive + engineering). All stages stream via SSE. Myers-Briggs profile injected into all stages.
 2. **Batch Diagnostics**: Persistent batch entities with tier-based concurrency limits (starter=1, professional=5, business=20, enterprise=unlimited), per-case pause/cancel, cross-case pattern detection
 3. **Stripe Subscription Billing**: 4 tiers (Foundation $149, Professional $349, Compliance $749, Enterprise Custom) with Checkout + Customer Portal, webhook sync
 4. **Tier Gating + RBAC**: Tier aliases (foundation→starter, proactive→professional, compliance→business) normalized in tierGating.ts; owner/admin/viewer roles
@@ -71,6 +71,9 @@ artifacts-monorepo/
 15. **System Alerts**: Severity-based alerts with acknowledgment workflow
 16. **Secure Share Vault**: AES-256 encrypted shared access vault
 17. **Settings**: Profile, security/access control, notification preferences, team management
+18. **Analytics Dashboard**: KPI cards + case-by-status/priority charts + 12-stage pipeline performance breakdown + domain error trend bars + resolution metrics. Routes: `/api/analytics/kpi`, `/api/analytics/case-metrics`, `/api/analytics/pipeline-performance`, `/api/analytics/error-trends`
+19. **Environment Context Layer**: Capture system snapshots with service topology, connector statuses, and environment metadata. Routes: `POST /api/environment/snapshot`, `GET /api/environment/topology`, `GET /api/environment/snapshots`
+20. **Remote Control Backend**: Permission-scoped sandboxed session framework with read/write/admin scopes, command safety guardrails (blocked patterns + allowlist for read scope), full audit log. Routes: `POST /api/remote/session`, `POST /api/remote/session/:id/execute`, `GET /api/remote/session/:id/log`, `POST /api/remote/session/:id/close`
 
 ## Database Schema
 
@@ -82,8 +85,14 @@ artifacts-monorepo/
 - `batches` - Batch diagnostic jobs with concurrency limits
 - `batch_cases` - Individual cases within a batch
 - `diagnostic_attempts` - Per-tier diagnostic attempt records with signals, UDO graph, root causes
-- `knowledge_nodes` - Knowledge graph nodes with domain, symptoms, resolution steps, search_text (pg_trgm), embedding (pgvector), confidence_score
+- `knowledge_nodes` - Knowledge graph nodes with domain, symptoms, resolution steps, search_text (pg_trgm), embedding (pgvector 1536-dim), confidence_score, historical_success
 - `knowledge_edges` - Relationships between knowledge nodes (domain_related, etc.) with weight
+- `environment_snapshots` - System state captures with topology, services, connector statuses, cloud metadata
+- `analytics_events` - Pipeline stage telemetry (eventType, stage, durationMs, tokenCount, confidenceScore)
+- `error_patterns` - Recurring error pattern tracking by domain with occurrence counts and KB linkage
+- `playbooks` - Resolution playbook library with steps, risk levels, and permission requirements
+- `escalation_history` - Audit trail of all escalations with tier, confidence, and pipeline stage
+- `remote_sessions` - Sandboxed remote control sessions with scope, token, command log
 - `system_alerts` - System notifications with severity and acknowledgment
 - `audit_log` - Audit trail of user actions
 - `stripe.*` - Synced Stripe data (products, prices, subscriptions, customers)

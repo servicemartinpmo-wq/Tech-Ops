@@ -1,6 +1,6 @@
 import { db, knowledgeNodesTable, knowledgeEdgesTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { buildSearchText } from "./embeddings";
+import { buildSearchText, generateLocalEmbedding } from "./embeddings";
 import { KB } from "../kb/knowledge-base";
 
 const DOMAIN_RELATIONSHIPS: Record<string, string[]> = {
@@ -20,7 +20,7 @@ export async function seedKnowledgeBase(): Promise<{ nodesCreated: number; edges
     return { nodesCreated: 0, edgesCreated: 0 };
   }
 
-  console.log(`Seeding ${KB.length} knowledge nodes...`);
+  console.log(`Seeding ${KB.length} knowledge nodes with embeddings...`);
 
   const insertedNodes: Array<{ id: number; externalId: string; domain: string }> = [];
 
@@ -33,6 +33,8 @@ export async function seedKnowledgeBase(): Promise<{ nodesCreated: number; edges
       resolutionSteps: entry.resolutionSteps,
       tags: entry.tags,
     });
+
+    const embedding = generateLocalEmbedding(searchText);
 
     const [node] = await db.insert(knowledgeNodesTable).values({
       externalId: entry.id,
@@ -50,6 +52,7 @@ export async function seedKnowledgeBase(): Promise<{ nodesCreated: number; edges
       escalationConditions: entry.escalationConditions || [],
       estimatedTime: entry.estimatedTime,
       searchText,
+      embedding,
       confidenceScore: entry.historicalSuccess,
       historicalSuccess: entry.historicalSuccess,
     }).returning({ id: knowledgeNodesTable.id, externalId: knowledgeNodesTable.externalId, domain: knowledgeNodesTable.domain });
@@ -76,6 +79,6 @@ export async function seedKnowledgeBase(): Promise<{ nodesCreated: number; edges
     }
   }
 
-  console.log(`Seed complete: ${insertedNodes.length} nodes, ${edgesCreated} edges.`);
+  console.log(`Seed complete: ${insertedNodes.length} nodes (with embeddings), ${edgesCreated} edges.`);
   return { nodesCreated: insertedNodes.length, edgesCreated };
 }

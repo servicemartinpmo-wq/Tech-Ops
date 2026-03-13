@@ -4,13 +4,38 @@ import { eq, and, desc, sql, ilike, or, inArray } from "drizzle-orm";
 import { classifySeverity, classifyIntent } from "../kb/knowledge-base";
 import { buildDecisionTree } from "../kb/decision-engine";
 import { getMonitorStats, subscribeToMonitorEvents } from "../kb/proactive-monitor";
-import { buildSearchText } from "../services/embeddings";
+import { buildSearchText, generateLocalEmbedding } from "../services/embeddings";
 import { requireRole } from "../middleware/tierGating";
 import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
 
-async function semanticSearch(query: string, options?: { domain?: string; limit?: number }) {
+async function vectorSearch(query: string, options?: { domain?: string; limit?: number }): Promise<Array<Record<string, unknown>>> {
+  const limit = options?.limit || 10;
+  const queryEmbedding = generateLocalEmbedding(query);
+  const embeddingStr = `[${queryEmbedding.join(",")}]`;
+  const domainFilter = options?.domain
+    ? `AND domain ILIKE '${options.domain.replace(/'/g, "''")}'`
+    : "";
+
+  const results = await db.execute(sql.raw(`
+    SELECT
+      id, external_id, domain, subdomain, title, type, description,
+      symptoms, resolution_steps, tags, tier, self_healable,
+      escalation_conditions, estimated_time, confidence_score,
+      historical_success, search_text, created_at,
+      1 - (embedding <=> '${embeddingStr}'::vector) as vector_similarity
+    FROM knowledge_nodes
+    WHERE embedding IS NOT NULL
+    ${domainFilter}
+    ORDER BY embedding <=> '${embeddingStr}'::vector
+    LIMIT ${limit}
+  `));
+
+  return (results.rows || []) as Array<Record<string, unknown>>;
+}
+
+async function textSearch(query: string, options?: { domain?: string; limit?: number }): Promise<Array<Record<string, unknown>>> {
   const limit = options?.limit || 10;
   const cleanQuery = query.replace(/'/g, "''").toLowerCase();
   const domainFilter = options?.domain
@@ -42,38 +67,34 @@ async function semanticSearch(query: string, options?: { domain?: string; limit?
   return (results.rows || []) as Array<Record<string, unknown>>;
 }
 
-async function semanticSearchFallback(query: string, options?: { domain?: string; limit?: number }) {
-  const limit = options?.limit || 10;
-  const cleanQuery = query.replace(/'/g, "''").toLowerCase();
-  const domainFilter = options?.domain
-    ? `AND domain ILIKE '${options.domain.replace(/'/g, "''")}'`
-    : "";
+async function searchKnowledge(query: string, options?: { domain?: string; limit?: number }) {
+  const vectorResults = await vectorSearch(query, options);
+  if (vectorResults.length > 0) {
+    const topSim = parseFloat(String(vectorResults[0].vector_similarity || 0));
+    if (topSim > 0.05) {
+      return { results: vectorResults, method: "vector" as const };
+    }
+  }
 
-  const results = await db.execute(sql.raw(`
-    SELECT
-      id, external_id, domain, subdomain, title, type, description,
-      symptoms, resolution_steps, tags, tier, self_healable,
-      escalation_conditions, estimated_time, confidence_score,
-      historical_success, search_text, created_at,
-      similarity(search_text, '${cleanQuery}') as trgm_similarity,
-      0 as fts_rank
-    FROM knowledge_nodes
-    WHERE search_text IS NOT NULL
-    ${domainFilter}
-    ORDER BY similarity(search_text, '${cleanQuery}') DESC
-    LIMIT ${limit}
-  `));
+  const textResults = await textSearch(query, options);
+  if (textResults.length > 0) {
+    return { results: textResults, method: "text" as const };
+  }
 
-  return (results.rows || []) as Array<Record<string, unknown>>;
+  if (vectorResults.length > 0) {
+    return { results: vectorResults, method: "vector" as const };
+  }
+
+  return { results: [], method: "none" as const };
 }
 
-async function searchKnowledge(query: string, options?: { domain?: string; limit?: number }) {
-  try {
-    const results = await semanticSearch(query, options);
-    if (results.length > 0) return results;
-  } catch {
+function getSimilarityScore(row: Record<string, unknown>, method: string): number {
+  if (method === "vector") {
+    return parseFloat(String(row.vector_similarity || 0));
   }
-  return semanticSearchFallback(query, options);
+  const trgm = parseFloat(String(row.trgm_similarity || 0));
+  const fts = parseFloat(String(row.fts_rank || 0));
+  return Math.min(1.0, trgm * 3.0 + fts * 0.5);
 }
 
 router.get("/kb/entries", async (req, res: Response): Promise<void> => {
@@ -84,7 +105,7 @@ router.get("/kb/entries", async (req, res: Response): Promise<void> => {
   const limit = Math.min(parseInt(limitStr || "50", 10) || 50, 200);
 
   if (search) {
-    const results = await searchKnowledge(search, { domain, limit });
+    const { results } = await searchKnowledge(search, { domain, limit });
     const domains = [...new Set(results.map(r => String(r.domain)))];
     res.json({ entries: results, domains, total: results.length });
     return;
@@ -165,13 +186,14 @@ router.get("/kb/search", async (req, res: Response): Promise<void> => {
 
   const limit = Math.min(parseInt(limitStr || "10", 10) || 10, 50);
 
-  const results = await searchKnowledge(q, { domain, limit });
+  const { results, method } = await searchKnowledge(q, { domain, limit });
 
   res.json({
     query: q,
+    method,
     results: results.map((row) => ({
       ...row,
-      similarity: parseFloat(String(row.trgm_similarity || 0)),
+      similarity: getSimilarityScore(row, method),
     })),
     total: results.length,
   });
@@ -186,6 +208,7 @@ router.post("/kb/entries", requireRole("owner", "admin"), async (req, res: Respo
   }
 
   const searchText = buildSearchText({ domain, subdomain, title, symptoms, resolutionSteps, tags });
+  const embedding = generateLocalEmbedding(searchText);
 
   const [node] = await db.insert(knowledgeNodesTable).values({
     externalId: externalId || `KB-${Date.now()}`,
@@ -203,6 +226,7 @@ router.post("/kb/entries", requireRole("owner", "admin"), async (req, res: Respo
     escalationConditions: escalationConditions || [],
     estimatedTime: estimatedTime || null,
     searchText,
+    embedding,
     confidenceScore: 0.5,
     historicalSuccess: 0.5,
   }).returning();
@@ -235,7 +259,7 @@ router.patch("/kb/entries/:id", requireRole("owner", "admin"), async (req, res: 
 
   const needsReindex = domain !== undefined || title !== undefined || symptoms !== undefined || resolutionSteps !== undefined || tags !== undefined || subdomain !== undefined;
   if (needsReindex) {
-    updates.searchText = buildSearchText({
+    const searchText = buildSearchText({
       domain: (domain ?? existing.domain),
       subdomain: (subdomain ?? existing.subdomain ?? undefined),
       title: (title ?? existing.title),
@@ -243,6 +267,8 @@ router.patch("/kb/entries/:id", requireRole("owner", "admin"), async (req, res: 
       resolutionSteps: (resolutionSteps ?? existing.resolutionSteps ?? []) as string[],
       tags: (tags ?? existing.tags ?? []) as string[],
     });
+    updates.searchText = searchText;
+    updates.embedding = generateLocalEmbedding(searchText);
   }
 
   const [updated] = await db.update(knowledgeNodesTable)
@@ -272,10 +298,10 @@ router.post("/kb/lookup", async (req, res: Response): Promise<void> => {
   const { query, domain } = req.body;
   if (!query) { res.status(400).json({ error: "query is required" }); return; }
 
-  const results = await searchKnowledge(query, { domain, limit: 5 });
+  const { results, method } = await searchKnowledge(query, { domain, limit: 5 });
 
   const topResult = results[0];
-  const similarity = topResult ? parseFloat(String(topResult.trgm_similarity || 0)) : 0;
+  const similarity = topResult ? getSimilarityScore(topResult, method) : 0;
   const confidenceScore = Math.round(similarity * 100);
 
   const severity = classifySeverity(query);
@@ -289,7 +315,7 @@ router.post("/kb/lookup", async (req, res: Response): Promise<void> => {
     confidenceScore,
     action: confidenceScore >= 80 ? "AutoResolve" as const : confidenceScore >= 60 ? "Suggest" as const : "Escalate" as const,
     decisionReason: topResult
-      ? `Confidence ${confidenceScore}% — matched KB node ${topResult.external_id} (${topResult.domain}/${topResult.subdomain})`
+      ? `Confidence ${confidenceScore}% — matched KB node ${topResult.external_id} (${topResult.domain}/${topResult.subdomain}) via ${method} search`
       : "No confident KB match found. Escalating to Tier 1 review.",
     dependencies: [] as string[],
     timestamp: new Date().toISOString(),
@@ -307,7 +333,7 @@ router.post("/kb/lookup", async (req, res: Response): Promise<void> => {
       externalId: r.external_id,
       title: r.title,
       domain: r.domain,
-      similarity: parseFloat(String(r.trgm_similarity || 0)),
+      similarity: getSimilarityScore(r, method),
     })),
   };
 
@@ -328,10 +354,10 @@ router.post("/kb/decision-tree", async (req, res: Response): Promise<void> => {
   if (!caseItem) { res.status(404).json({ error: "Case not found" }); return; }
 
   const queryText = caseItem.title + " " + (caseItem.description || "");
-  const results = await searchKnowledge(queryText, { limit: 1 });
+  const { results, method } = await searchKnowledge(queryText, { limit: 1 });
 
   const topResult = results[0];
-  const similarity = topResult ? parseFloat(String(topResult.trgm_similarity || 0)) : 0;
+  const similarity = topResult ? getSimilarityScore(topResult, method) : 0;
   const confidenceScore = Math.round(similarity * 100);
 
   const severity = classifySeverity(queryText);
@@ -344,7 +370,7 @@ router.post("/kb/decision-tree", async (req, res: Response): Promise<void> => {
     confidenceScore,
     action: confidenceScore >= 80 ? "AutoResolve" as const : confidenceScore >= 60 ? "Suggest" as const : "Escalate" as const,
     decisionReason: topResult
-      ? `Matched KB node ${topResult.external_id} with ${confidenceScore}% confidence`
+      ? `Matched KB node ${topResult.external_id} with ${confidenceScore}% confidence via ${method} search`
       : "No KB match found",
     dependencies: [] as string[],
     timestamp: new Date().toISOString(),

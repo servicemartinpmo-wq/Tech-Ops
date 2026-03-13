@@ -12,6 +12,9 @@ import batchesRouter from "./batches";
 import alertsRouter from "./alerts";
 import kbRouter from "./kb";
 import vaultRouter from "./vault";
+import environmentRouter from "./environment";
+import analyticsRouter from "./analytics";
+import remoteRouter from "./remote";
 
 const router: IRouter = Router();
 
@@ -28,5 +31,8 @@ router.use(batchesRouter);
 router.use(alertsRouter);
 router.use(kbRouter);
 router.use(vaultRouter);
+router.use(environmentRouter);
+router.use(analyticsRouter);
+router.use(remoteRouter);
 
 export default router;

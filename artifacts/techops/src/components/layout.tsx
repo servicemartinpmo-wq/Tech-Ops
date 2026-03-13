@@ -42,6 +42,7 @@ const navItems = [
   { href: "/security", label: "Security & Privacy", icon: ShieldCheck },
   { href: "/kb", label: "Knowledge Base", icon: BookOpen },
   { href: "/stack-intelligence", label: "Stack Intelligence", icon: Brain },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/pmo-ops", label: "PMO-Ops", icon: BarChart3 },
   { href: "/secure-vault", label: "Secure Share Vault", icon: Lock },
   { href: "/issue-log", label: "Issue Activity Log", icon: ClipboardList },

@@ -4,6 +4,7 @@ import app from "./app";
 import { startProactiveMonitor } from "./kb/proactive-monitor";
 import { startAutomationEngine } from "./automationEngine";
 import { seedKnowledgeBase } from "./services/seedKnowledge";
+import { pool } from "@workspace/db";
 
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -50,6 +51,14 @@ async function main() {
   }
 
   await initStripe();
+
+  try {
+    await pool.query("CREATE EXTENSION IF NOT EXISTS vector");
+    await pool.query("CREATE EXTENSION IF NOT EXISTS pg_trgm");
+    console.log("PostgreSQL extensions ready (pgvector, pg_trgm)");
+  } catch (err) {
+    console.error("Failed to enable PostgreSQL extensions:", err);
+  }
 
   seedKnowledgeBase()
     .then(result => console.log(`Knowledge base seed: ${result.nodesCreated} nodes, ${result.edgesCreated} edges`))
