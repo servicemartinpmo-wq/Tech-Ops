@@ -158,10 +158,11 @@ function DemoButton() {
   const handleDemo = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/demo/session", { method: "POST", credentials: "include" });
+      const base = (import.meta.env.BASE_URL as string ?? "/").replace(/\/$/, "");
+      const res = await fetch(`${base}/api/demo/session`, { method: "POST", credentials: "include" });
       if (res.ok) {
-        const data = await res.json() as { redirect?: string };
-        window.location.href = data.redirect || "/techops/dashboard";
+        const baseUrl = import.meta.env.BASE_URL as string ?? "/";
+        window.location.href = `${baseUrl}dashboard`.replace(/\/+/g, "/");
       }
     } finally {
       setLoading(false);
