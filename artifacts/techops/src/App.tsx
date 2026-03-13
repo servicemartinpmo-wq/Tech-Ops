@@ -29,6 +29,7 @@ import PMOOps from "@/pages/pmo-ops";
 import RemoteAssistance from "@/pages/remote-assistance";
 import KnowledgeBase from "@/pages/kb";
 import SecureVault from "@/pages/secure-vault";
+import IssueLog from "@/pages/issue-log";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/pmo-ops"><ProtectedRoute component={PMOOps} /></Route>
       <Route path="/remote-assistance"><ProtectedRoute component={RemoteAssistance} /></Route>
       <Route path="/secure-vault"><ProtectedRoute component={SecureVault} /></Route>
+      <Route path="/issue-log"><ProtectedRoute component={IssueLog} /></Route>
       <Route component={NotFound} />
     </Switch>
   );

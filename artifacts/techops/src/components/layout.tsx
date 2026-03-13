@@ -24,7 +24,8 @@ import {
   Search,
   BookOpen,
   Lock,
-  ArrowRight
+  ArrowRight,
+  ClipboardList
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,6 +46,7 @@ const navItems = [
   { href: "/pmo-ops", label: "PMO-Ops", icon: BarChart3 },
   { href: "/remote-assistance", label: "Remote Assistance", icon: Monitor },
   { href: "/secure-vault", label: "Secure Share Vault", icon: Lock },
+  { href: "/issue-log", label: "Issue Activity Log", icon: ClipboardList },
   { href: "/alerts", label: "System Alerts", icon: Bell },
   { href: "/preferences", label: "Preferences", icon: Settings2 },
   { href: "/billing", label: "Subscription", icon: CreditCard },
