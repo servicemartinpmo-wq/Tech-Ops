@@ -25,6 +25,7 @@ import Connectors from "@/pages/connectors";
 import ConnectorDetail from "@/pages/connectors/detail";
 import AutomationCenter from "@/pages/automation";
 import BatchDiagnostics from "@/pages/batches";
+import AutonomousSupport from "@/pages/autonomous";
 import SystemAlerts from "@/pages/alerts";
 import Settings from "@/pages/settings";
 import Security from "@/pages/security";
@@ -94,6 +95,7 @@ function Router() {
       <Route path="/connectors/:name"><ProtectedRoute component={ConnectorDetail} /></Route>
       <Route path="/automation"><ProtectedRoute component={AutomationCenter} /></Route>
       <Route path="/batches"><ProtectedRoute component={BatchDiagnostics} /></Route>
+      <Route path="/autonomous"><ProtectedRoute component={AutonomousSupport} /></Route>
       <Route path="/alerts"><ProtectedRoute component={SystemAlerts} /></Route>
       <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
       <Route path="/security"><ProtectedRoute component={Security} /></Route>

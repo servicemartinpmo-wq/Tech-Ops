@@ -47,7 +47,8 @@ const navSections = [
       { href: "/cases/resolved",   label: "Solved",           icon: CheckCircle2    },
       { href: "/apphia",           label: "Ask Apphia",       icon: MessageSquareText },
       { href: "/remote-assistance",label: "Screen Sharing",   icon: Monitor         },
-      { href: "/batches",          label: "Run Checks",       icon: Zap             },
+      { href: "/batches",           label: "Run Checks",        icon: Zap             },
+      { href: "/autonomous",        label: "Autonomous Support", icon: Cpu             },
     ],
   },
   {

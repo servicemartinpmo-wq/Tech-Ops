@@ -7,6 +7,8 @@ import {
 } from "@workspace/db";
 import type { AuthenticatedRequest } from "../types";
 import { requireRole } from "../middleware/tierGating";
+import bcryptjs from "bcryptjs";
+import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router: IRouter = Router();
 
@@ -179,6 +181,111 @@ router.post("/admin/kb", requireRole("admin"), handle(async (req, res) => {
 router.delete("/admin/kb/:id", requireRole("admin"), handle(async (req, res) => {
   await db.delete(knowledgeNodesTable).where(eq(knowledgeNodesTable.id, parseInt(String(req.params.id), 10)));
   res.json({ success: true });
+}));
+
+// ── Create User ───────────────────────────────────────────────────────────────
+
+router.post("/admin/users", requireRole("admin"), handle(async (req, res) => {
+  const { email, firstName, lastName, password, role, tier } = req.body as {
+    email?: string; firstName?: string; lastName?: string;
+    password?: string; role?: string; tier?: string;
+  };
+  if (!email?.trim()) { res.status(400).json({ error: "email is required" }); return; }
+  const existing = await db.select({ id: usersTable.id }).from(usersTable)
+    .where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+  if (existing.length > 0) { res.status(409).json({ error: "Email already in use" }); return; }
+  const passwordHash = password ? await bcryptjs.hash(password, 12) : null;
+  const validRoles = ["viewer", "user", "admin", "owner"];
+  const validTiers = ["free", "starter", "professional", "business", "enterprise"];
+  const [user] = await db.insert(usersTable).values({
+    email: email.trim().toLowerCase(),
+    firstName: firstName?.trim() || null,
+    lastName: lastName?.trim() || null,
+    passwordHash: passwordHash || undefined,
+    authProvider: "email",
+    role: validRoles.includes(role || "") ? role! : "user",
+    subscriptionTier: validTiers.includes(tier || "") ? tier! : "free",
+  }).returning();
+  res.status(201).json({ success: true, user });
+}));
+
+// ── Edit User Profile ──────────────────────────────────────────────────────────
+
+router.patch("/admin/users/:id", requireRole("admin"), handle(async (req, res) => {
+  const { firstName, lastName, email } = req.body as {
+    firstName?: string; lastName?: string; email?: string;
+  };
+  const updates: Record<string, string> = {};
+  if (firstName !== undefined) updates.firstName = firstName.trim();
+  if (lastName  !== undefined) updates.lastName  = lastName.trim();
+  if (email     !== undefined) updates.email     = email.trim().toLowerCase();
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No fields to update" }); return; }
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, String(req.params.id)));
+  res.json({ success: true });
+}));
+
+// ── Delete User ───────────────────────────────────────────────────────────────
+
+router.delete("/admin/users/:id", requireRole("admin"), handle(async (req, res) => {
+  const targetId = String(req.params.id);
+  const callerId = (req.user as { id: string }).id;
+  if (targetId === callerId) { res.status(400).json({ error: "Cannot delete your own account" }); return; }
+  await db.delete(usersTable).where(eq(usersTable.id, targetId));
+  res.json({ success: true });
+}));
+
+// ── AI Assist (Creator) ────────────────────────────────────────────────────────
+
+router.post("/admin/ai-assist", requireRole("admin"), handle(async (req, res) => {
+  const { issue, context, userId } = req.body as {
+    issue?: string; context?: string; userId?: string;
+  };
+  if (!issue?.trim()) { res.status(400).json({ error: "issue description is required" }); return; }
+
+  let userContext = "";
+  if (userId) {
+    const [u] = await db.select({
+      email: usersTable.email, firstName: usersTable.firstName, lastName: usersTable.lastName,
+      subscriptionTier: usersTable.subscriptionTier,
+    }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (u) {
+      userContext = `\n\nAffected user: ${[u.firstName, u.lastName].filter(Boolean).join(" ") || u.email || userId} (tier: ${u.subscriptionTier || "free"})`;
+    }
+  }
+
+  const systemPrompt = `You are Apphia in Creator Mode — a direct technical assistant for the platform operator (Martin PMO). You have full access to help diagnose and fix any issue in the Tech-Ops platform, user accounts, or infrastructure. You respond with structured JSON only.
+
+When given an issue description, respond with VALID JSON in this exact shape:
+{
+  "summary": "1-2 sentence plain-English summary of what is likely happening",
+  "steps": ["Specific action step 1", "Specific action step 2", "..."],
+  "codeSnippet": "optional relevant code, SQL, bash command, or config — null if not applicable",
+  "language": "bash | sql | typescript | json | plaintext — or null if no code",
+  "confidence": "high | medium | low"
+}
+
+Be direct, precise, and technical. This is for the platform creator, not an end user.`;
+
+  const userMessage = `Issue: ${issue.trim()}${userContext}${context ? `\n\nExtra context: ${context.trim()}` : ""}`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user",   content: userMessage },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: 800,
+    temperature: 0.3,
+  });
+
+  const raw = completion.choices[0]?.message?.content || "{}";
+  try {
+    const parsed = JSON.parse(raw);
+    res.json({ success: true, result: parsed });
+  } catch {
+    res.json({ success: true, result: { summary: raw, steps: [], codeSnippet: null, language: null, confidence: "low" } });
+  }
 }));
 
 // ── Audit Log ─────────────────────────────────────────────────────────────────
