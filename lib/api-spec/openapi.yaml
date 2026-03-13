@@ -12,7 +12,7 @@ tags:
     description: Health operations
   - name: Auth
     description: Browser and mobile authentication endpoints.
-  - name: openai
+  - name: apphia
     description: Apphia Engine chat, image, and audio operations
   - name: cases
     description: Diagnostic case operations
@@ -139,10 +139,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
-  /openai/conversations:
+  /apphia/conversations:
     get:
       operationId: listOpenaiConversations
-      tags: [openai]
+      tags: [apphia]
       summary: List all conversations
       responses:
         "200":
@@ -155,7 +155,7 @@ paths:
                   $ref: "#/components/schemas/OpenaiConversation"
     post:
       operationId: createOpenaiConversation
-      tags: [openai]
+      tags: [apphia]
       summary: Create a new conversation
       requestBody:
         required: true
@@ -170,10 +170,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenaiConversation"
-  /openai/conversations/{id}:
+  /apphia/conversations/{id}:
     get:
       operationId: getOpenaiConversation
-      tags: [openai]
+      tags: [apphia]
       parameters:
         - name: id
           in: path
@@ -195,7 +195,7 @@ paths:
                 $ref: "#/components/schemas/OpenaiError"
     delete:
       operationId: deleteOpenaiConversation
-      tags: [openai]
+      tags: [apphia]
       parameters:
         - name: id
           in: path
@@ -211,10 +211,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OpenaiError"
-  /openai/conversations/{id}/messages:
+  /apphia/conversations/{id}/messages:
     get:
       operationId: listOpenaiMessages
-      tags: [openai]
+      tags: [apphia]
       parameters:
         - name: id
           in: path
@@ -232,7 +232,7 @@ paths:
                   $ref: "#/components/schemas/OpenaiMessage"
     post:
       operationId: sendOpenaiMessage
-      tags: [openai]
+      tags: [apphia]
       parameters:
         - name: id
           in: path
@@ -250,10 +250,10 @@ paths:
           description: SSE stream of assistant text chunks
           content:
             text/event-stream: {}
-  /openai/conversations/{id}/voice-messages:
+  /apphia/conversations/{id}/voice-messages:
     post:
       operationId: sendOpenaiVoiceMessage
-      tags: [openai]
+      tags: [apphia]
       parameters:
         - name: id
           in: path
@@ -271,10 +271,10 @@ paths:
           description: SSE stream of transcript and audio chunks
           content:
             text/event-stream: {}
-  /openai/generate-image:
+  /apphia/generate-image:
     post:
       operationId: generateOpenaiImage
-      tags: [openai]
+      tags: [apphia]
       requestBody:
         required: true
         content:
@@ -641,6 +641,231 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PortalSessionResponse"
+  /batches:
+    get:
+      operationId: listBatches
+      tags: [batches]
+      summary: List all batches for the authenticated user
+      responses:
+        "200":
+          description: Array of batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Batch"
+    post:
+      operationId: createBatch
+      tags: [batches]
+      summary: Create and start a new batch diagnostic run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, caseIds]
+              properties:
+                name:
+                  type: string
+                caseIds:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "201":
+          description: Created batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+        "403":
+          description: Feature not available or quota exceeded
+        "429":
+          description: Concurrency limit reached
+  /batches/{id}:
+    get:
+      operationId: getBatch
+      tags: [batches]
+      summary: Get a batch by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Batch detail with cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+        "404":
+          description: Batch not found
+  /batches/{id}/progress:
+    get:
+      operationId: getBatchProgress
+      tags: [batches]
+      summary: Get live progress for a running batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Batch progress snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchProgress"
+  /batches/{id}/cancel:
+    post:
+      operationId: cancelBatch
+      tags: [batches]
+      summary: Cancel all pending cases in a batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated batch
+        "404":
+          description: Batch not found
+  /batches/{id}/cases:
+    post:
+      operationId: addCasesToBatch
+      tags: [batches]
+      summary: Add cases to a running or paused batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [caseIds]
+              properties:
+                caseIds:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "201":
+          description: Cases added successfully
+        "404":
+          description: Batch not found
+        "409":
+          description: Batch is completed or cancelled
+  /batches/{id}/cases/{caseId}/pause:
+    post:
+      operationId: pauseBatchCase
+      tags: [batches]
+      summary: Pause a pending case in a batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case paused
+        "404":
+          description: Case not found or not pausable
+  /batches/{id}/cases/{caseId}/cancel:
+    post:
+      operationId: cancelBatchCase
+      tags: [batches]
+      summary: Cancel a pending or paused case in a batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case cancelled
+        "404":
+          description: Case not found or not cancellable
+  /batches/{id}/cases/{caseId}/retry:
+    post:
+      operationId: retryBatchCase
+      tags: [batches]
+      summary: Retry a failed, cancelled, or paused batch case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case reset to pending
+        "404":
+          description: Case not found or not retriable
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: List system alerts for the authenticated user
+      parameters:
+        - name: acknowledged
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Array of system alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SystemAlert"
+  /alerts/{id}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      tags: [alerts]
+      summary: Mark a system alert as acknowledged
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert acknowledged
+        "404":
+          description: Alert not found
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -1132,3 +1357,107 @@ components:
       properties:
         url:
           type: string
+    BatchCase:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        caseId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, running, completed, failed, system_error, cancelled, paused]
+        errorType:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    Batch:
+      type: object
+      required: [id, userId, name, status, totalCases, completedCases, failedCases, systemErrorCases, concurrencyLimit, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        totalCases:
+          type: integer
+        completedCases:
+          type: integer
+        failedCases:
+          type: integer
+        systemErrorCases:
+          type: integer
+        concurrencyLimit:
+          type: integer
+        crossCasePatterns:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    BatchProgress:
+      type: object
+      properties:
+        status:
+          type: string
+        totalCases:
+          type: integer
+        completedCases:
+          type: integer
+        failedCases:
+          type: integer
+        systemErrorCases:
+          type: integer
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchCase"
+    SystemAlert:
+      type: object
+      required: [id, userId, type, severity, title, message, acknowledged, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, high, critical]
+        title:
+          type: string
+        message:
+          type: string
+        source:
+          type: string
+          nullable: true
+        acknowledged:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time

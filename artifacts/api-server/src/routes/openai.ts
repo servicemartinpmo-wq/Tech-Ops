@@ -35,7 +35,7 @@ function buildApphiaSystemPrompt(profile?: { communicationStyle?: string; detail
 
 const router: IRouter = Router();
 
-router.get("/openai/conversations", async (req, res: Response): Promise<void> => {
+router.get("/apphia/conversations", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -51,7 +51,7 @@ router.get("/openai/conversations", async (req, res: Response): Promise<void> =>
   res.json(conversations);
 });
 
-router.post("/openai/conversations", async (req, res: Response): Promise<void> => {
+router.post("/apphia/conversations", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -72,7 +72,7 @@ router.post("/openai/conversations", async (req, res: Response): Promise<void> =
   res.status(201).json(conversation);
 });
 
-router.get("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
+router.get("/apphia/conversations/:id", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -101,7 +101,7 @@ router.get("/openai/conversations/:id", async (req, res: Response): Promise<void
   res.json({ ...conversation, messages: msgs });
 });
 
-router.delete("/openai/conversations/:id", async (req, res: Response): Promise<void> => {
+router.delete("/apphia/conversations/:id", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -124,7 +124,7 @@ router.delete("/openai/conversations/:id", async (req, res: Response): Promise<v
   res.sendStatus(204);
 });
 
-router.get("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
+router.get("/apphia/conversations/:id/messages", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -153,7 +153,7 @@ router.get("/openai/conversations/:id/messages", async (req, res: Response): Pro
   res.json(msgs);
 });
 
-router.post("/openai/conversations/:id/messages", async (req, res: Response): Promise<void> => {
+router.post("/apphia/conversations/:id/messages", async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });

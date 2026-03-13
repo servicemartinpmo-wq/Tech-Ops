@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db, automationRulesTable } from "@workspace/db";
 import { CreateAutomationRuleBody, UpdateAutomationRuleBody } from "@workspace/api-zod";
 import type { AuthenticatedRequest } from "../types";
+import { requireRole } from "../middleware/tierGating";
 
 const router: IRouter = Router();
 
@@ -21,7 +22,7 @@ router.get("/automation/rules", async (req, res: Response): Promise<void> => {
   res.json(rules);
 });
 
-router.post("/automation/rules", async (req, res: Response): Promise<void> => {
+router.post("/automation/rules", requireRole("owner", "admin"), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -49,7 +50,7 @@ router.post("/automation/rules", async (req, res: Response): Promise<void> => {
   res.status(201).json(rule);
 });
 
-router.patch("/automation/rules/:id", async (req, res: Response): Promise<void> => {
+router.patch("/automation/rules/:id", requireRole("owner", "admin"), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });
@@ -79,7 +80,7 @@ router.patch("/automation/rules/:id", async (req, res: Response): Promise<void> 
   res.json(updated);
 });
 
-router.delete("/automation/rules/:id", async (req, res: Response): Promise<void> => {
+router.delete("/automation/rules/:id", requireRole("owner", "admin"), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) {
     res.status(401).json({ error: "Not authenticated" });

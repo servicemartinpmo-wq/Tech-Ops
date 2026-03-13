@@ -16,7 +16,7 @@ export function useSseChat(conversationId: number | null) {
       try {
         // Optimistically add user message if desired, but here we just rely on the server 
         // returning the stream for Apphia. The server saves the user message.
-        const res = await fetch(`/api/openai/conversations/${conversationId}/messages`, {
+        const res = await fetch(`/api/apphia/conversations/${conversationId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content }),
@@ -59,7 +59,7 @@ export function useSseChat(conversationId: number | null) {
       } finally {
         setIsStreaming(false);
         // Refresh the message list to get the fully persisted messages
-        queryClient.invalidateQueries({ queryKey: [`/api/openai/conversations/${conversationId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/apphia/conversations/${conversationId}`] });
       }
     },
     [conversationId, queryClient]

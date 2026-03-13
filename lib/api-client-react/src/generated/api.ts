@@ -643,7 +643,7 @@ export const useLogoutMobileSession = <
  * @summary List all conversations
  */
 export const getListOpenaiConversationsUrl = () => {
-  return `/api/openai/conversations`;
+  return `/api/apphia/conversations`;
 };
 
 export const listOpenaiConversations = async (
@@ -656,7 +656,7 @@ export const listOpenaiConversations = async (
 };
 
 export const getListOpenaiConversationsQueryKey = () => {
-  return [`/api/openai/conversations`] as const;
+  return [`/api/apphia/conversations`] as const;
 };
 
 export const getListOpenaiConversationsQueryOptions = <
@@ -719,7 +719,7 @@ export function useListOpenaiConversations<
  * @summary Create a new conversation
  */
 export const getCreateOpenaiConversationUrl = () => {
-  return `/api/openai/conversations`;
+  return `/api/apphia/conversations`;
 };
 
 export const createOpenaiConversation = async (
@@ -803,7 +803,7 @@ export const useCreateOpenaiConversation = <
 };
 
 export const getGetOpenaiConversationUrl = (id: number) => {
-  return `/api/openai/conversations/${id}`;
+  return `/api/apphia/conversations/${id}`;
 };
 
 export const getOpenaiConversation = async (
@@ -820,7 +820,7 @@ export const getOpenaiConversation = async (
 };
 
 export const getGetOpenaiConversationQueryKey = (id: number) => {
-  return [`/api/openai/conversations/${id}`] as const;
+  return [`/api/apphia/conversations/${id}`] as const;
 };
 
 export const getGetOpenaiConversationQueryOptions = <
@@ -887,7 +887,7 @@ export function useGetOpenaiConversation<
 }
 
 export const getDeleteOpenaiConversationUrl = (id: number) => {
-  return `/api/openai/conversations/${id}`;
+  return `/api/apphia/conversations/${id}`;
 };
 
 export const deleteOpenaiConversation = async (
@@ -965,7 +965,7 @@ export const useDeleteOpenaiConversation = <
 };
 
 export const getListOpenaiMessagesUrl = (id: number) => {
-  return `/api/openai/conversations/${id}/messages`;
+  return `/api/apphia/conversations/${id}/messages`;
 };
 
 export const listOpenaiMessages = async (
@@ -979,7 +979,7 @@ export const listOpenaiMessages = async (
 };
 
 export const getListOpenaiMessagesQueryKey = (id: number) => {
-  return [`/api/openai/conversations/${id}/messages`] as const;
+  return [`/api/apphia/conversations/${id}/messages`] as const;
 };
 
 export const getListOpenaiMessagesQueryOptions = <
@@ -1045,7 +1045,7 @@ export function useListOpenaiMessages<
 }
 
 export const getSendOpenaiMessageUrl = (id: number) => {
-  return `/api/openai/conversations/${id}/messages`;
+  return `/api/apphia/conversations/${id}/messages`;
 };
 
 export const sendOpenaiMessage = async (
@@ -1126,7 +1126,7 @@ export const useSendOpenaiMessage = <
 };
 
 export const getSendOpenaiVoiceMessageUrl = (id: number) => {
-  return `/api/openai/conversations/${id}/voice-messages`;
+  return `/api/apphia/conversations/${id}/voice-messages`;
 };
 
 export const sendOpenaiVoiceMessage = async (
