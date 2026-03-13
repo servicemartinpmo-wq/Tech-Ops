@@ -67,9 +67,8 @@ const features = [
 const pricingPlans = [
   {
     name: "Foundation",
-    price: 149,
+    price: 75,
     tagline: "Freelancers & solo operators",
-    mspNote: "vs. $100–$150/user MSP basic",
     color: "#0ea5e9",
     features: [
       "1 concurrent support ticket slot",
@@ -83,9 +82,8 @@ const pricingPlans = [
   },
   {
     name: "Proactive",
-    price: 349,
+    price: 250,
     tagline: "Small teams of 2–15 users",
-    mspNote: "vs. $150–$225/user MSP standard",
     color: "#7c3aed",
     popular: true,
     features: [
@@ -101,9 +99,8 @@ const pricingPlans = [
   },
   {
     name: "Compliance",
-    price: 749,
+    price: 500,
     tagline: "SMBs of 15–75 users",
-    mspNote: "vs. $250–$350+/user MSP compliance",
     color: "#059669",
     features: [
       "5 concurrent support ticket slots",
@@ -514,9 +511,6 @@ function PricingSection({ onLogin }: { onLogin: () => void }) {
                       <span className="text-4xl font-display font-black text-slate-900">${plan.price}</span>
                       <span className="text-slate-400 font-medium mb-1">/mo</span>
                     </div>
-                    {"mspNote" in plan && plan.mspNote && (
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{plan.mspNote}</p>
-                    )}
                   </div>
                 ) : (
                   <div className="text-4xl font-display font-black text-slate-900">Custom</div>
