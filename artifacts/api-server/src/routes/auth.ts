@@ -1,272 +1,337 @@
-import * as oidc from "openid-client";
+import * as oidcClient from "openid-client";
+import crypto from "crypto";
+import bcryptjs from "bcryptjs";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { eq, and, gt } from "drizzle-orm";
+import { db, usersTable, magicLinksTable } from "@workspace/db";
+import { GetCurrentAuthUserResponse } from "@workspace/api-zod";
 import {
-  GetCurrentAuthUserResponse,
-  ExchangeMobileAuthorizationCodeBody,
-  ExchangeMobileAuthorizationCodeResponse,
-  LogoutMobileSessionResponse,
-} from "@workspace/api-zod";
-import { db, usersTable } from "@workspace/db";
-import {
-  clearSession,
-  getOidcConfig,
-  getSessionId,
-  createSession,
-  deleteSession,
-  SESSION_COOKIE,
-  SESSION_TTL,
-  ISSUER_URL,
+  clearSession, createSession, deleteSession, getSessionId,
+  setSessionCookie, getOrigin, SESSION_COOKIE, SESSION_TTL,
   type SessionData,
 } from "../lib/auth";
-
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
+import { sendEmail } from "../emailService";
 
 const router: IRouter = Router();
 
-function getOrigin(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host =
-    req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
-  return `${proto}://${host}`;
-}
-
-function setSessionCookie(res: Response, sid: string) {
-  res.cookie(SESSION_COOKIE, sid, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_TTL,
-  });
-}
-
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: OIDC_COOKIE_TTL,
-  });
-}
+const MAGIC_LINK_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return "/";
   return value;
 }
 
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
-    email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
-  };
-
+async function upsertUser(data: {
+  id?: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  profileImageUrl?: string | null;
+  googleId?: string | null;
+  authProvider?: string;
+  passwordHash?: string | null;
+}) {
+  const id = data.id ?? crypto.randomUUID();
   const [user] = await db
     .insert(usersTable)
-    .values(userData)
+    .values({ ...data, id })
     .onConflictDoUpdate({
       target: usersTable.id,
-      set: {
-        ...userData,
-        updatedAt: new Date(),
-      },
+      set: { ...data, updatedAt: new Date() },
     })
     .returning();
   return user;
 }
 
+// ── Current User ──────────────────────────────────────────────────────────────
+
 router.get("/auth/user", (req: Request, res: Response) => {
-  res.json(
-    GetCurrentAuthUserResponse.parse({
-      user: req.isAuthenticated() ? req.user : null,
-    }),
-  );
+  res.json(GetCurrentAuthUserResponse.parse({ user: req.isAuthenticated() ? req.user : null }));
 });
 
-router.get("/login", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
+// ── Logout ────────────────────────────────────────────────────────────────────
 
+router.get("/logout", async (req: Request, res: Response) => {
+  const sid = getSessionId(req);
+  await clearSession(res, sid);
   const returnTo = getSafeReturnTo(req.query.returnTo);
+  res.redirect(returnTo || "/");
+});
 
-  const state = oidc.randomState();
-  const nonce = oidc.randomNonce();
-  const codeVerifier = oidc.randomPKCECodeVerifier();
-  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+router.post("/auth/logout", async (req: Request, res: Response) => {
+  const sid = getSessionId(req);
+  await clearSession(res, sid);
+  res.json({ success: true });
+});
 
-  const redirectTo = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: callbackUrl,
-    scope: "openid email profile offline_access",
-    code_challenge: codeChallenge,
+// ── Email + Password ──────────────────────────────────────────────────────────
+
+router.post("/auth/register", async (req: Request, res: Response) => {
+  const { email, password, firstName, lastName } = req.body as {
+    email?: string; password?: string; firstName?: string; lastName?: string;
+  };
+
+  if (!email?.trim() || !password) {
+    res.status(400).json({ error: "Email and password are required" });
+    return;
+  }
+
+  const emailNorm = email.trim().toLowerCase();
+
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, emailNorm)).limit(1);
+  if (existing) {
+    res.status(409).json({ error: "An account with this email already exists" });
+    return;
+  }
+
+  const hash = await bcryptjs.hash(password, 12);
+  const user = await upsertUser({
+    email:        emailNorm,
+    firstName:    firstName?.trim() || null,
+    lastName:     lastName?.trim() || null,
+    passwordHash: hash,
+    authProvider: "email",
+  });
+
+  const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });
+  setSessionCookie(res, sid);
+  res.status(201).json({ user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
+});
+
+router.post("/auth/login", async (req: Request, res: Response) => {
+  const { email, password } = req.body as { email?: string; password?: string };
+
+  if (!email?.trim() || !password) {
+    res.status(400).json({ error: "Email and password are required" });
+    return;
+  }
+
+  const emailNorm = email.trim().toLowerCase();
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailNorm)).limit(1);
+
+  if (!user || !user.passwordHash) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const valid = await bcryptjs.compare(password, user.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: "Invalid email or password" });
+    return;
+  }
+
+  const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });
+  setSessionCookie(res, sid);
+  res.json({ user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
+});
+
+// ── Magic Link ─────────────────────────────────────────────────────────────────
+
+router.post("/auth/magic-link/request", async (req: Request, res: Response) => {
+  const { email } = req.body as { email?: string };
+  if (!email?.trim()) {
+    res.status(400).json({ error: "Email is required" });
+    return;
+  }
+
+  const emailNorm = email.trim().toLowerCase();
+
+  const token    = crypto.randomBytes(48).toString("hex");
+  const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MS);
+
+  await db.insert(magicLinksTable).values({ email: emailNorm, token, expiresAt });
+
+  const origin  = getOrigin(req);
+  const link    = `${origin}/api/auth/magic-link/verify?token=${token}`;
+
+  const { sent } = await sendEmail({
+    to: emailNorm,
+    subject: "Your Tech-Ops sign-in link",
+    html: `
+<!DOCTYPE html>
+<html>
+<body style="font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:0;">
+  <div style="max-width:520px;margin:40px auto;background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;">
+    <div style="background:linear-gradient(135deg,#0ea5e9,#6366f1);padding:28px 32px;">
+      <h1 style="margin:0;font-size:20px;font-weight:700;color:#fff;">Tech-Ops by Martin PMO</h1>
+      <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.8);">Support, Engineered.</p>
+    </div>
+    <div style="padding:32px;">
+      <h2 style="margin:0 0 12px;font-size:18px;font-weight:600;color:#f1f5f9;">Sign in to your account</h2>
+      <p style="color:#94a3b8;font-size:14px;margin:0 0 24px;">Click the button below to sign in. This link expires in 15 minutes and can only be used once.</p>
+      <a href="${link}" style="display:inline-block;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;font-size:14px;font-weight:600;padding:14px 28px;border-radius:8px;text-decoration:none;">Sign In to Tech-Ops →</a>
+      <p style="margin:24px 0 0;font-size:12px;color:#475569;">If you didn't request this, you can safely ignore this email.</p>
+    </div>
+  </div>
+</body>
+</html>`,
+  });
+
+  if (!sent) {
+    console.log(`[MagicLink] Dev link for ${emailNorm}: ${link}`);
+  }
+
+  // Always return success so we don't leak whether email exists
+  res.json({ sent: true, devLink: process.env.NODE_ENV !== "production" ? link : undefined });
+});
+
+router.get("/auth/magic-link/verify", async (req: Request, res: Response) => {
+  const { token } = req.query as { token?: string };
+  if (!token) { res.redirect("/auth?error=invalid"); return; }
+
+  const [row] = await db
+    .select()
+    .from(magicLinksTable)
+    .where(and(eq(magicLinksTable.token, token), eq(magicLinksTable.used, false), gt(magicLinksTable.expiresAt, new Date())))
+    .limit(1);
+
+  if (!row) { res.redirect("/auth?error=expired"); return; }
+
+  await db.update(magicLinksTable).set({ used: true }).where(eq(magicLinksTable.id, row.id));
+
+  const emailNorm = row.email.toLowerCase();
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, emailNorm)).limit(1);
+
+  if (!user) {
+    user = await upsertUser({ email: emailNorm, authProvider: "magic_link" });
+  }
+
+  const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });
+  setSessionCookie(res, sid);
+
+  const base = process.env.APP_BASE_PATH || "/techops";
+  res.redirect(`${base}/dashboard`);
+});
+
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+
+let googleConfig: oidcClient.Configuration | null = null;
+
+async function getGoogleConfig(): Promise<oidcClient.Configuration | null> {
+  const clientId     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+
+  if (!googleConfig) {
+    googleConfig = await oidcClient.discovery(
+      new URL("https://accounts.google.com"),
+      clientId,
+      clientSecret,
+    );
+  }
+  return googleConfig;
+}
+
+router.get("/auth/google", async (req: Request, res: Response) => {
+  const config = await getGoogleConfig();
+  if (!config) {
+    res.status(503).json({ error: "Google OAuth is not configured on this server" });
+    return;
+  }
+
+  const origin      = getOrigin(req);
+  const callbackUrl = `${origin}/api/auth/google/callback`;
+  const returnTo    = getSafeReturnTo(req.query.returnTo);
+
+  const state        = oidcClient.randomState();
+  const nonce        = oidcClient.randomNonce();
+  const codeVerifier = oidcClient.randomPKCECodeVerifier();
+  const codeChallenge = await oidcClient.calculatePKCECodeChallenge(codeVerifier);
+
+  const redirectTo = oidcClient.buildAuthorizationUrl(config, {
+    redirect_uri:          callbackUrl,
+    scope:                 "openid email profile",
+    code_challenge:        codeChallenge,
     code_challenge_method: "S256",
-    prompt: "login consent",
     state,
     nonce,
   });
 
-  setOidcCookie(res, "code_verifier", codeVerifier);
-  setOidcCookie(res, "nonce", nonce);
-  setOidcCookie(res, "state", state);
-  setOidcCookie(res, "return_to", returnTo);
-
+  const COOKIE_OPTS = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 10 * 60 * 1000 };
+  res.cookie("g_cv",  codeVerifier, COOKIE_OPTS);
+  res.cookie("g_nc",  nonce,        COOKIE_OPTS);
+  res.cookie("g_st",  state,        COOKIE_OPTS);
+  res.cookie("g_rt",  returnTo,     COOKIE_OPTS);
   res.redirect(redirectTo.href);
 });
 
-// Query params are not validated because the OIDC provider may include
-// parameters not expressed in the schema.
-router.get("/callback", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
+router.get("/auth/google/callback", async (req: Request, res: Response) => {
+  const config = await getGoogleConfig();
+  if (!config) { res.redirect("/auth?error=google_disabled"); return; }
 
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
+  const origin      = getOrigin(req);
+  const callbackUrl = `${origin}/api/auth/google/callback`;
 
-  if (!codeVerifier || !expectedState) {
-    res.redirect("/api/login");
-    return;
-  }
+  const codeVerifier = req.cookies?.g_cv  as string | undefined;
+  const nonce        = req.cookies?.g_nc  as string | undefined;
+  const expectedState = req.cookies?.g_st as string | undefined;
+  const returnTo     = getSafeReturnTo(req.cookies?.g_rt);
 
-  const currentUrl = new URL(
-    `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
-  );
+  res.clearCookie("g_cv", { path: "/" });
+  res.clearCookie("g_nc", { path: "/" });
+  res.clearCookie("g_st", { path: "/" });
+  res.clearCookie("g_rt", { path: "/" });
 
-  let tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers;
+  if (!codeVerifier || !expectedState) { res.redirect("/auth?error=invalid"); return; }
+
+  const currentUrl = new URL(`${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`);
+
+  let tokens: oidcClient.TokenEndpointResponse & oidcClient.TokenEndpointResponseHelpers;
   try {
-    tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
+    tokens = await oidcClient.authorizationCodeGrant(config, currentUrl, {
       pkceCodeVerifier: codeVerifier,
-      expectedNonce: nonce,
+      expectedNonce:    nonce,
       expectedState,
-      idTokenExpected: true,
+      idTokenExpected:  true,
     });
-  } catch {
-    res.redirect("/api/login");
+  } catch (err) {
+    console.error("Google OAuth error:", err);
+    res.redirect("/auth?error=google_failed");
     return;
   }
-
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie("code_verifier", { path: "/" });
-  res.clearCookie("nonce", { path: "/" });
-  res.clearCookie("state", { path: "/" });
-  res.clearCookie("return_to", { path: "/" });
 
   const claims = tokens.claims();
-  if (!claims) {
-    res.redirect("/api/login");
-    return;
+  if (!claims?.sub) { res.redirect("/auth?error=no_claims"); return; }
+
+  const googleId = claims.sub as string;
+  const email    = (claims.email as string | undefined)?.toLowerCase();
+  const name     = (claims.name as string | undefined) || "";
+  const [firstName, ...rest] = name.split(" ");
+  const lastName = rest.join(" ") || null;
+  const picture  = (claims.picture as string | undefined) || null;
+
+  // Check if user exists by googleId first, then by email
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.googleId, googleId)).limit(1);
+  if (!user && email) {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   }
 
-  const dbUser = await upsertUser(
-    claims as unknown as Record<string, unknown>,
-  );
+  if (user) {
+    await db.update(usersTable).set({ googleId, profileImageUrl: picture, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    user = { ...user, googleId, profileImageUrl: picture };
+  } else {
+    user = await upsertUser({ email, googleId, firstName: firstName || null, lastName, profileImageUrl: picture, authProvider: "google" });
+  }
 
-  const now = Math.floor(Date.now() / 1000);
-  const sessionData: SessionData = {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email ?? undefined,
-      firstName: dbUser.firstName ?? undefined,
-      lastName: dbUser.lastName ?? undefined,
-      profileImageUrl: dbUser.profileImageUrl ?? undefined,
-    },
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-  };
-
-  const sid = await createSession(sessionData);
+  const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });
   setSessionCookie(res, sid);
-  res.redirect(returnTo);
+
+  const base = process.env.APP_BASE_PATH || "/techops";
+  res.redirect(returnTo !== "/" ? returnTo : `${base}/dashboard`);
 });
 
-router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
+// ── Legacy /login redirect (keep old links working) ───────────────────────────
 
-  const sid = getSessionId(req);
-  await clearSession(res, sid);
-
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: origin,
-  });
-
-  res.redirect(endSessionUrl.href);
+router.get("/login", (_req: Request, res: Response) => {
+  res.redirect("/auth");
 });
 
-router.post(
-  "/mobile-auth/token-exchange",
-  async (req: Request, res: Response) => {
-    const parsed = ExchangeMobileAuthorizationCodeBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Missing or invalid required parameters" });
-      return;
-    }
-
-    const { code, code_verifier, redirect_uri, state, nonce } = parsed.data;
-
-    try {
-      const config = await getOidcConfig();
-
-      const callbackUrl = new URL(redirect_uri);
-      callbackUrl.searchParams.set("code", code);
-      callbackUrl.searchParams.set("state", state);
-      callbackUrl.searchParams.set("iss", ISSUER_URL);
-
-      const tokens = await oidc.authorizationCodeGrant(config, callbackUrl, {
-        pkceCodeVerifier: code_verifier,
-        expectedNonce: nonce ?? undefined,
-        expectedState: state,
-        idTokenExpected: true,
-      });
-
-      const claims = tokens.claims();
-      if (!claims) {
-        res.status(401).json({ error: "No claims in ID token" });
-        return;
-      }
-
-      const dbUser = await upsertUser(
-        claims as unknown as Record<string, unknown>,
-      );
-
-      const now = Math.floor(Date.now() / 1000);
-      const sessionData: SessionData = {
-        user: {
-          id: dbUser.id,
-          email: dbUser.email ?? undefined,
-          firstName: dbUser.firstName ?? undefined,
-          lastName: dbUser.lastName ?? undefined,
-          profileImageUrl: dbUser.profileImageUrl ?? undefined,
-        },
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-      };
-
-      const sid = await createSession(sessionData);
-      res.json(ExchangeMobileAuthorizationCodeResponse.parse({ token: sid }));
-    } catch (err) {
-      console.error("Mobile token exchange error:", err);
-      res.status(500).json({ error: "Token exchange failed" });
-    }
-  },
-);
+// ── Mobile token exchange (keep for Expo app) ─────────────────────────────────
 
 router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
-  if (sid) {
-    await deleteSession(sid);
-  }
-  res.json(LogoutMobileSessionResponse.parse({ success: true }));
+  if (sid) await deleteSession(sid);
+  res.json({ success: true });
 });
 
 export default router;

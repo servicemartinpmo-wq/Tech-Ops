@@ -7,48 +7,46 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: () => void;
+  login: (returnTo?: string) => void;
   logout: () => void;
+  refetch: () => void;
 }
 
 export function useAuth(): AuthState {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser]       = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tick, setTick]       = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
 
     fetch("/api/auth/user", { credentials: "include" })
-      .then((res) => {
+      .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<{ user: AuthUser | null }>;
       })
-      .then((data) => {
-        if (!cancelled) {
-          setUser(data.user ?? null);
-          setIsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUser(null);
-          setIsLoading(false);
-        }
-      });
+      .then(data => { if (!cancelled) { setUser(data.user ?? null); setIsLoading(false); } })
+      .catch(() => { if (!cancelled) { setUser(null); setIsLoading(false); } });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
+  }, [tick]);
+
+  const login = useCallback((returnTo?: string) => {
+    const base = import.meta.env.BASE_URL?.replace(/\/+$/, "") || "";
+    const dest  = returnTo ?? `${base}/dashboard`;
+    window.location.href = `/auth?returnTo=${encodeURIComponent(dest)}`;
   }, []);
 
-  const login = useCallback(() => {
-    const base = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
-    window.location.href = `/api/login?returnTo=${encodeURIComponent(base)}`;
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch { /* ignore */ }
+    setUser(null);
+    window.location.href = "/";
   }, []);
 
-  const logout = useCallback(() => {
-    window.location.href = "/api/logout";
-  }, []);
+  const refetch = useCallback(() => setTick(t => t + 1), []);
 
   return {
     user,
@@ -56,5 +54,6 @@ export function useAuth(): AuthState {
     isAuthenticated: !!user,
     login,
     logout,
+    refetch,
   };
 }

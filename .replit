@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [[artifacts]]
 id = "artifacts/api-server"
@@ -33,3 +33,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 STRIPE_SECRET_KEY = "sk_test_51TAEzdCwnP0L8Awziq7ZJcN4h0xZEDtkdZcb6J4VoRTCzspQakPcqCsSgzGGL72h9xN7AAlab1WVaj04DhV82wrA00T5fHzbrD"
+APP_BASE_PATH = "/techops"

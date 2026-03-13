@@ -8,6 +8,7 @@ import { Layout } from "@/components/layout";
 import { VoiceOrb } from "@/components/voice-orb";
 import { TicketQueuePanel } from "@/components/ticket-queue-panel";
 import Landing from "@/pages/landing";
+import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import CasesList from "@/pages/cases/list";
 import CaseDetail from "@/pages/cases/detail";
@@ -65,6 +66,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/auth" component={AuthPage} />
       <Route path="/dashboard"><ProtectedRoute component={Dashboard} /></Route>
       <Route path="/cases"><ProtectedRoute component={CasesList} /></Route>
       <Route path="/cases/submit"><ProtectedRoute component={SubmitCase} /></Route>

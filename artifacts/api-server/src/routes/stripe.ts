@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { storage } from "../storage";
 import { stripeService } from "../stripeService";
+import { getStripeSync } from "../stripeClient";
 import type { AuthenticatedRequest } from "../types";
 
 const router: IRouter = Router();
@@ -51,6 +52,17 @@ router.post("/stripe/checkout", async (req, res: Response): Promise<void> => {
 
   res.json({ url: session.url });
 });
+
+router.post("/stripe/sync", async (_req, res: Response): Promise<void> => {
+  try {
+    const sync = await getStripeSync();
+    await sync.syncBackfill();
+    res.json({ ok: true, message: "Stripe data synced" });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 
 router.get("/stripe/products", async (_req, res: Response): Promise<void> => {
   const rows = await storage.listProductsWithPrices();

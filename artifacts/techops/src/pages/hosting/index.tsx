@@ -239,7 +239,10 @@ export default function Hosting() {
     setLoading(true);
     try {
       const res = await fetch(`${apiBase}/api/hosting/projects`, { credentials: "include" });
-      if (res.ok) setProjects(await res.json() as HostedProject[]);
+      if (res.ok) {
+        const data = await res.json() as { projects?: HostedProject[] } | HostedProject[];
+        setProjects(Array.isArray(data) ? data : (data as { projects?: HostedProject[] }).projects ?? []);
+      }
     } finally { setLoading(false); }
   }, [apiBase]);
 

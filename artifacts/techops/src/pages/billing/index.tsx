@@ -117,17 +117,35 @@ export default function Billing() {
     });
   };
 
-  const plansToRender = products.length > 0
-    ? products.map(p => {
-        const key = p.name.toLowerCase().replace(/\s+/g, "");
-        const meta = PLAN_META[key] || PLAN_META.starter;
-        const price = p.prices[0];
-        return { id: p.id, name: p.name, price, description: p.description, meta, key };
-      })
-    : FALLBACK_PLANS.map(fp => {
+  const TIER_ORDER = ["starter", "professional", "business", "enterprise"];
+
+  const plansToRender = (() => {
+    if (products.length === 0) {
+      return FALLBACK_PLANS.map(fp => {
         const meta = PLAN_META[fp.key] || PLAN_META.starter;
         return { id: fp.key, name: fp.name, price: null, description: null, meta, key: fp.key, fallbackPrice: fp.price, popular: fp.popular };
       });
+    }
+
+    const byKey = new Map<string, typeof products[number]>();
+    for (const p of products) {
+      const key = p.name.toLowerCase().replace(/\s+/g, "");
+      if (!PLAN_META[key]) continue;
+      const existing = byKey.get(key);
+      const existingAmount = existing?.prices[0]?.unitAmount ?? 0;
+      const thisAmount = p.prices[0]?.unitAmount ?? 0;
+      if (!existing || thisAmount > existingAmount) byKey.set(key, p);
+    }
+
+    return TIER_ORDER
+      .filter(k => byKey.has(k))
+      .map(k => {
+        const p = byKey.get(k)!;
+        const meta = PLAN_META[k];
+        const price = p.prices[0];
+        return { id: p.id, name: p.name, price, description: p.description, meta, key: k };
+      });
+  })();
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
