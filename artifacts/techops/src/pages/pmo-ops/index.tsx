@@ -1,207 +1,179 @@
-import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Card, Button } from "@/components/ui";
 import {
-  BarChart3, Clock, Zap, TrendingUp, CheckCircle2, AlertTriangle,
-  RefreshCw, Target, Activity, Layers
+  BarChart3, Clock, Target, CheckCircle2, ArrowRight, ExternalLink,
+  Star, Zap, Shield, Users, TrendingUp, Calendar, Award, Headphones
 } from "lucide-react";
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from "recharts";
-import { useApiBase } from "@/hooks/use-api-base";
+import { Link } from "wouter";
 
-interface PMOData {
-  period: { days: number };
-  cases: { total: number; resolved: number; open: number; inProgress: number; resolutionRate: number; avgResolutionMinutes: number; avgConfidence: number };
-  sla: { breached: number; compliant: number; rate: number };
-  efficiency: { autoResolved: number; autoRate: number; timeSavedMinutes: number; timeSavedHours: number };
-  batches: { total: number; completed: number; avgDurationMs: number; totalCasesProcessed: number };
-  diagnostics: { attempts: number; avgConfidence: number };
-  byDay: Array<{ day: string; submitted: string; resolved: string; avg_min: string }>;
-  byPriority: Array<{ priority: string; count: string; resolved: string }>;
-}
+const features = [
+  {
+    icon: BarChart3,
+    title: "Project Performance Reports",
+    desc: "Real-time dashboards showing ticket volume, resolution rates, and team performance across your entire operation.",
+    color: "text-blue-600", bg: "bg-blue-50",
+  },
+  {
+    icon: Clock,
+    title: "SLA Tracking",
+    desc: "Automatic monitoring of response and resolution deadlines. Get alerted before anything slips through the cracks.",
+    color: "text-violet-600", bg: "bg-violet-50",
+  },
+  {
+    icon: Target,
+    title: "Goal & Milestone Tracking",
+    desc: "Set targets for your support operation and watch progress in real time. Monthly and quarterly reporting included.",
+    color: "text-emerald-600", bg: "bg-emerald-50",
+  },
+  {
+    icon: Users,
+    title: "Team Capacity Planning",
+    desc: "Understand workloads before they become bottlenecks. Plan staffing based on actual ticket trends.",
+    color: "text-amber-600", bg: "bg-amber-50",
+  },
+  {
+    icon: TrendingUp,
+    title: "Trend Analysis",
+    desc: "Spot recurring issues across your client base before they become expensive problems. Powered by the Apphia engine.",
+    color: "text-rose-600", bg: "bg-rose-50",
+  },
+  {
+    icon: Calendar,
+    title: "Scheduled Reporting",
+    desc: "Automated weekly and monthly reports delivered straight to your inbox — fully branded and ready to share.",
+    color: "text-indigo-600", bg: "bg-indigo-50",
+  },
+];
 
-const COLORS = ["#7c3aed", "#0ea5e9", "#10b981", "#f59e0b", "#f43f5e"];
+const steps = [
+  { step: "1", label: "Sign up for PMO-Ops", desc: "Create your dedicated PMO-Ops account at pmo-ops.techopspmo.com" },
+  { step: "2", label: "Connect to Tech-Ops", desc: "Use your API key to link both platforms in the Connected Tools section" },
+  { step: "3", label: "Go live", desc: "Data starts flowing immediately — your first report is ready within 24 hours" },
+];
 
-function StatCard({ label, value, sub, icon: Icon, color }: { label: string; value: string | number; sub?: string; icon: React.ComponentType<{ className?: string }>; color: string }) {
-  return (
-    <Card className="p-5 border border-slate-200 shadow-sm bg-white">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">{label}</p>
-          <p className={`text-3xl font-bold tabular-nums ${color}`}>{value}</p>
-          {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
-        </div>
-        <div className="p-2.5 rounded-xl bg-slate-50">
-          <Icon className={`w-5 h-5 ${color}`} />
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-type Period = "7" | "30" | "90";
+const BASE = import.meta.env.BASE_URL?.replace(/\/+$/, "") || "";
 
 export default function PMOOps() {
-  const apiBase = useApiBase();
-  const [data, setData]       = useState<PMOData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod]   = useState<Period>("30");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${apiBase}/api/pmo/dashboard?days=${period}`, { credentials: "include" });
-      if (res.ok) setData(await res.json() as PMOData);
-    } finally { setLoading(false); }
-  }, [apiBase, period]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const volData = (data?.byDay || []).map(d => ({
-    day:      new Date(d.day).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    submitted: Number(d.submitted),
-    resolved:  Number(d.resolved),
-    avgMin:    Number(d.avg_min || 0),
-  }));
-
-  const priData = (data?.byPriority || []).map(d => ({
-    name:     d.priority || "Unset",
-    count:    Number(d.count),
-    resolved: Number(d.resolved),
-  }));
-
-  const slaData = [
-    { name: "Compliant", value: data?.sla.compliant || 0 },
-    { name: "Breached",  value: data?.sla.breached  || 0 },
-  ];
-
   return (
-    <div className="max-w-7xl mx-auto">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">PMO Operations</h1>
-          <p className="text-slate-500 mt-1">Live efficiency and ROI metrics from your real case data.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-slate-100 rounded-lg p-1">
-            {(["7","30","90"] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${period === p ? "bg-white shadow text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
-                {p}d
-              </button>
-            ))}
+    <div className="max-w-4xl mx-auto space-y-10">
+      {/* Header */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-50 to-transparent rounded-bl-full pointer-events-none" />
+        <div className="relative z-10 flex items-start gap-6">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+            <img src={`${BASE}/images/logo-pmo-ops.png`} alt="PMO-Ops" className="w-12 h-12 rounded-xl object-cover" />
           </div>
-          <Button variant="outline" onClick={() => void load()} disabled={loading} size="sm" className="flex items-center gap-2">
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-2xl font-bold text-slate-900">PMO-Ops</h1>
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <Star className="w-2.5 h-2.5" /> Recommended
+              </span>
+            </div>
+            <p className="text-slate-500 text-sm mb-4 leading-relaxed max-w-xl">
+              PMO-Ops is a separate, optional service built specifically for teams who want project management office-level oversight of their tech support operation. It connects directly to your Tech-Ops account.
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <a
+                href="https://pmo-ops.techopspmo.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-sm hover:from-blue-500 hover:to-indigo-500 transition-all shadow-md shadow-blue-200"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Visit PMO-Ops
+                <ArrowRight className="w-4 h-4" />
+              </a>
+              <span className="text-sm text-slate-400">Separate subscription · Starting at $49/mo</span>
+            </div>
+          </div>
         </div>
       </motion.div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Resolution Rate" value={loading ? "—" : `${data?.cases.resolutionRate ?? 0}%`} sub={`${data?.cases.resolved ?? 0} of ${data?.cases.total ?? 0} resolved`} icon={CheckCircle2} color="text-emerald-600" />
-        <StatCard label="Avg Resolution Time" value={loading ? "—" : `${data?.cases.avgResolutionMinutes ?? 0}m`} sub="per case" icon={Clock} color="text-sky-600" />
-        <StatCard label="Time Saved" value={loading ? "—" : `${data?.efficiency.timeSavedHours ?? 0}h`} sub={`${data?.efficiency.autoRate ?? 0}% auto-resolved`} icon={Zap} color="text-violet-600" />
-        <StatCard label="SLA Compliance" value={loading ? "—" : `${data?.sla.rate ?? 0}%`} sub={`${data?.sla.breached ?? 0} breached`} icon={Target} color={data?.sla.rate && data.sla.rate >= 90 ? "text-emerald-600" : "text-rose-600"} />
+      {/* What it does */}
+      <div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">What PMO-Ops adds to your workflow</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+              className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className={`w-10 h-10 rounded-xl ${f.bg} flex items-center justify-center mb-3`}>
+                <f.icon className={`w-5 h-5 ${f.color}`} />
+              </div>
+              <h3 className="font-semibold text-slate-800 text-sm mb-1.5">{f.title}</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">{f.desc}</p>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
-      {/* Row 2 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Cases" value={loading ? "—" : String(data?.cases.total ?? 0)} sub={`last ${period}d`} icon={BarChart3} color="text-slate-700" />
-        <StatCard label="Batch Runs" value={loading ? "—" : String(data?.batches.total ?? 0)} sub={`${data?.batches.totalCasesProcessed ?? 0} cases processed`} icon={Layers} color="text-indigo-600" />
-        <StatCard label="Avg Confidence" value={loading ? "—" : `${data?.cases.avgConfidence ?? 0}%`} sub="Apphia Engine" icon={Activity} color="text-amber-600" />
-        <StatCard label="Diagnostic Attempts" value={loading ? "—" : String(data?.diagnostics.attempts ?? 0)} sub={`avg conf ${data?.diagnostics.avgConfidence ?? 0}%`} icon={TrendingUp} color="text-teal-600" />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Case Volume & Resolution Trend</h3>
-          {loading ? <div className="h-64 bg-slate-50 rounded animate-pulse" /> : volData.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-16">No data in this period.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={volData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
-                <Area type="monotone" dataKey="submitted" name="Submitted" stroke="#7c3aed" fill="#7c3aed20" strokeWidth={2} />
-                <Area type="monotone" dataKey="resolved"  name="Resolved"  stroke="#10b981" fill="#10b98120" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
-        <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Cases by Priority</h3>
-          {loading ? <div className="h-64 bg-slate-50 rounded animate-pulse" /> : priData.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-16">No data in this period.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={priData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="count"    name="Total"    fill="#7c3aed" radius={[4,4,0,0]} />
-                <Bar dataKey="resolved" name="Resolved" fill="#10b981" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
-        <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">SLA Compliance Split</h3>
-          {loading ? <div className="h-64 bg-slate-50 rounded animate-pulse" /> : (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={slaData} cx="50%" cy="50%" outerRadius={90} dataKey="value"
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  <Cell fill="#10b981" />
-                  <Cell fill="#f43f5e" />
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-
-        <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-4">Efficiency Summary</h3>
-          {loading ? <div className="h-64 bg-slate-50 rounded animate-pulse" /> : (
-            <div className="space-y-4 pt-4">
-              {[
-                { label: "Cases submitted",          value: String(data?.cases.total ?? 0) },
-                { label: "Cases resolved",           value: String(data?.cases.resolved ?? 0) },
-                { label: "Auto-resolved by Apphia",  value: String(data?.efficiency.autoResolved ?? 0) },
-                { label: "Auto-resolution rate",     value: `${data?.efficiency.autoRate ?? 0}%` },
-                { label: "Estimated time saved",     value: `${data?.efficiency.timeSavedHours ?? 0}h ${(data?.efficiency.timeSavedMinutes ?? 0) % 60}m` },
-                { label: "Batch cases processed",    value: String(data?.batches.totalCasesProcessed ?? 0) },
-                { label: "Avg resolution time",      value: `${data?.cases.avgResolutionMinutes ?? 0} min` },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between py-2 border-b border-slate-100">
-                  <span className="text-sm text-slate-600">{label}</span>
-                  <span className="text-sm font-bold text-slate-900">{value}</span>
-                </div>
-              ))}
+      {/* How to connect */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900 mb-5">How to connect PMO-Ops to Tech-Ops</h2>
+        <div className="space-y-4">
+          {steps.map((s, i) => (
+            <div key={s.step} className="flex items-start gap-4">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-bold flex items-center justify-center shrink-0 shadow-sm">
+                {s.step}
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">{s.label}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{s.desc}</p>
+              </div>
+              {i < steps.length - 1 && (
+                <div className="absolute left-7 mt-8 w-0.5 h-6 bg-slate-200" />
+              )}
             </div>
-          )}
-        </Card>
+          ))}
+        </div>
+        <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs text-slate-600 font-medium">Once connected, data syncs automatically every 15 minutes</span>
+          </div>
+          <Link href="/connectors" className="text-xs text-blue-600 font-semibold hover:underline flex items-center gap-1">
+            Go to Connected Tools <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
 
-      {!loading && data?.cases.total === 0 && (
-        <Card className="p-8 bg-white border border-slate-200 shadow-sm text-center">
-          <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">No case data in this period yet.</p>
-          <p className="text-sm text-slate-400 mt-1">Submit cases via the Cases page to start seeing real efficiency metrics.</p>
-        </Card>
-      )}
+      {/* Badges */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { icon: Zap, label: "Quick Setup", desc: "Under 5 minutes" },
+          { icon: Shield, label: "Secure Sync", desc: "API key encrypted" },
+          { icon: Award, label: "Built for Teams", desc: "1–100+ users" },
+        ].map(b => (
+          <div key={b.label} className="bg-white border border-slate-200 rounded-2xl p-4 text-center shadow-sm">
+            <b.icon className="w-5 h-5 text-blue-600 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-800">{b.label}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{b.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-7 text-center shadow-lg shadow-blue-200/50">
+        <Headphones className="w-8 h-8 text-blue-200 mx-auto mb-3" />
+        <h3 className="text-lg font-bold text-white mb-2">Ready to level up your operation?</h3>
+        <p className="text-blue-200 text-sm mb-5 max-w-md mx-auto">
+          PMO-Ops turns your Tech-Ops data into a management system your whole team can run from.
+        </p>
+        <a
+          href="https://pmo-ops.techopspmo.com/signup"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-blue-700 font-bold text-sm hover:bg-blue-50 transition-colors shadow-sm"
+        >
+          <ExternalLink className="w-4 h-4" />
+          Get Started with PMO-Ops
+        </a>
+        <p className="text-blue-300 text-xs mt-3">Free 14-day trial · No credit card required</p>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 
 import { Layout } from "@/components/layout";
 import { VoiceCompanion } from "@/components/voice-companion";
+import { NotificationProvider } from "@/context/notifications";
 import { TicketQueuePanel } from "@/components/ticket-queue-panel";
 import { CookieConsent } from "@/components/cookie-consent";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -114,12 +115,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-          <CookieConsent />
-          <VoiceCompanion />
-        </WouterRouter>
-        <Toaster />
+        <NotificationProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+            <CookieConsent />
+            <VoiceCompanion />
+          </WouterRouter>
+          <Toaster />
+        </NotificationProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

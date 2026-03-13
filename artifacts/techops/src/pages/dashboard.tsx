@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import { useApiBase } from "@/hooks/use-api-base";
+import { useAuth } from "@workspace/replit-auth-web";
 import { OnboardingModal } from "@/components/onboarding-modal";
 
 function AnimatedCounter({ value, suffix = "" }: { value: number | string; suffix?: string }) {
@@ -188,11 +189,19 @@ const STAT_ACCENTS = [
   { gradient: "from-violet-500 to-purple-500", glow: "rgba(139,92,246,0.08)", border: "rgba(139,92,246,0.2)" },
 ];
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity({ limit: 8 });
   const apiBase = useApiBase();
   const kbStats = useKBStats(apiBase);
+  const { user } = useAuth();
 
   if (statsLoading || activityLoading) {
     return (
@@ -207,22 +216,28 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { label: "Active Cases", value: stats?.openCases || 0, icon: AlertCircle, iconColor: "text-amber-500" },
+    { label: "Open Tickets", value: stats?.openCases || 0, icon: AlertCircle, iconColor: "text-amber-500" },
     { label: "Resolved", value: stats?.resolvedCases || 0, icon: CheckCircle2, iconColor: "text-emerald-500" },
-    { label: "Avg Resolution", value: stats?.avgResolutionTime ? `${Math.round(stats.avgResolutionTime / 60)}` : "0", suffix: "h", icon: Clock, iconColor: "text-sky-500" },
+    { label: "Avg Fix Time", value: stats?.avgResolutionTime ? `${Math.round(stats.avgResolutionTime / 60)}` : "0", suffix: "h", icon: Clock, iconColor: "text-sky-500" },
     { label: "Total Handled", value: stats?.totalCases || 0, icon: Activity, iconColor: "text-violet-500" },
   ];
 
   return (
     <div className="space-y-6">
       <OnboardingModal />
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-end">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-start flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-display font-extrabold text-slate-900">Platform Overview</h1>
-          <p className="text-slate-400 mt-0.5 text-sm font-medium">Real-time metrics and system health powered by Apphia.</p>
+          <p className="text-sm font-medium text-slate-400">{getGreeting()},</p>
+          <h1 className="text-2xl font-display font-extrabold text-slate-900 mt-0.5">
+            {user?.firstName || "Welcome"} {user?.lastName ? user.lastName : ""}
+          </h1>
+          <p className="text-slate-400 mt-1 text-sm font-medium flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+            Everything looks good. Your platform is running smoothly.
+          </p>
         </div>
-        <div className="px-3 py-1.5 bg-white border border-slate-200 rounded-full flex items-center gap-2 text-xs font-semibold text-slate-500 shadow-sm">
-          Plan: <span className="text-gradient bg-clip-text bg-gradient-to-r from-sky-500 to-violet-500 capitalize">{stats?.subscriptionTier || 'Free'}</span>
+        <div className="px-3 py-1.5 bg-white border border-slate-200 rounded-full flex items-center gap-2 text-xs font-semibold text-slate-500 shadow-sm mt-1">
+          Plan: <span className="bg-gradient-to-r from-sky-500 to-violet-500 bg-clip-text text-transparent capitalize">{stats?.subscriptionTier || 'Free'}</span>
         </div>
       </motion.div>
 
@@ -272,7 +287,7 @@ export default function Dashboard() {
           <div className="glass-card p-5 h-full">
             <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2 mb-5">
               <Shield className="w-4 h-4 text-sky-500" />
-              Connector Health
+              Tools Status
             </h2>
             <div className="space-y-4">
               {[
