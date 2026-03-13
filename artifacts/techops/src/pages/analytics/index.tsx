@@ -55,6 +55,11 @@ interface ConnectorHealth {
   connectors: Record<string, Array<{ status: string; latencyMs: number | null; checkedAt: string }>>;
 }
 
+interface ErrorCategories {
+  totalCases: number;
+  categories: Array<{ domain: string; label: string; count: number; percentage: number }>;
+}
+
 type Period = "7" | "30" | "90";
 type Tab = "overview" | "cases" | "pipeline" | "errors" | "connectors";
 
@@ -248,40 +253,40 @@ export default function Analytics() {
   const [resTimes, setResTimes] = useState<ResolutionTimes | null>(null);
   const [sla, setSla] = useState<SlaCompliance | null>(null);
   const [connHealth, setConnHealth] = useState<ConnectorHealth | null>(null);
+  const [errorCats, setErrorCats] = useState<ErrorCategories | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function fetchAll() {
     setLoading(true);
     try {
       const opts = { credentials: "include" as const };
-      const [kR, mR, pR, tR, cvR, rtR, slaR, chR] = await Promise.all([
+      const [kR, mR, pR, tR, cvR, rtR, slaR, chR, ecR] = await Promise.all([
         fetch(`${apiBase}/api/analytics/kpi`, opts),
         fetch(`${apiBase}/api/analytics/case-metrics?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/pipeline-performance?days=${period}`, opts),
-        fetch(`${apiBase}/api/analytics/error-trends`, opts),
+        fetch(`${apiBase}/api/analytics/error-trends?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/case-volume?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/resolution-times?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/sla-compliance?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/connector-health?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/error-categories?days=${period}`, opts),
       ]);
 
-      // Detect tier block — any gated endpoint returning 403
-      const gated = [cvR, rtR, slaR, chR];
+      // Detect tier block — kpi and all gated endpoints returning 403
+      const gated = [kR, mR, pR, tR, cvR, rtR, slaR, chR, ecR];
       if (gated.some(r => r.status === 403)) {
         setTierBlocked(true);
-        const kpiData = kR.ok ? await kR.json() : null;
-        setKpi(kpiData);
         setLoading(false);
         return;
       }
       setTierBlocked(false);
 
       const parse = async (r: Response) => r.ok ? r.json().catch(() => null) : null;
-      const [kpiD, mD, pD, tD, cvD, rtD, slaD, chD] = await Promise.all([
-        parse(kR), parse(mR), parse(pR), parse(tR), parse(cvR), parse(rtR), parse(slaR), parse(chR),
+      const [kpiD, mD, pD, tD, cvD, rtD, slaD, chD, ecD] = await Promise.all([
+        parse(kR), parse(mR), parse(pR), parse(tR), parse(cvR), parse(rtR), parse(slaR), parse(chR), parse(ecR),
       ]);
       setKpi(kpiD); setMetrics(mD); setPipeline(pD); setTrends(tD);
-      setCaseVolume(cvD); setResTimes(rtD); setSla(slaD); setConnHealth(chD);
+      setCaseVolume(cvD); setResTimes(rtD); setSla(slaD); setConnHealth(chD); setErrorCats(ecD);
     } catch (err) {
       console.error("[analytics] fetchAll error:", err);
     } finally {
@@ -692,6 +697,38 @@ export default function Analytics() {
 
           {tab === "errors" && (
             <div className="space-y-6">
+              {/* Top Issue Categories — derived from case titles mapped to knowledge domains */}
+              <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-slate-700">Top Issue Categories</h3>
+                  {errorCats && <span className="text-xs text-slate-400">{errorCats.totalCases} cases · last {period}d</span>}
+                </div>
+                {(errorCats?.categories || []).length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-10">No cases in this period.</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={Math.max(200, (errorCats?.categories.length || 0) * 38)}>
+                    <BarChart
+                      data={(errorCats?.categories || []).map(c => ({ name: c.label, count: c.count, pct: c.percentage }))}
+                      layout="vertical" margin={{ left: 8, right: 32, top: 4, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                      <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11, fill: "#64748b" }} />
+                      <Tooltip
+                        formatter={(v: number, name: string) =>
+                          name === "count" ? [`${v} cases`, "Cases"] : [`${v}%`, "Share"]
+                        }
+                        contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                      />
+                      <Bar dataKey="count" name="count" fill={COLORS.violet} radius={[0, 4, 4, 0]}>
+                        {(errorCats?.categories || []).map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="p-5 bg-white border border-slate-200 shadow-sm">
                   <h3 className="text-sm font-semibold text-slate-700 mb-4">Error Domain Distribution</h3>

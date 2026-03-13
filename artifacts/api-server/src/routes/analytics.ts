@@ -209,10 +209,12 @@ router.get("/analytics/error-trends", requireFeature(ANALYTICS), async (req, res
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
+  const { days, since } = parseDays(req.query.days as string);
   const { limit: limitStr } = req.query as { limit?: string };
   const limit = Math.min(parseInt(limitStr || "20", 10) || 20, 100);
 
   const patterns = await db.select().from(errorPatternsTable)
+    .where(gte(errorPatternsTable.createdAt, since))
     .orderBy(desc(errorPatternsTable.occurrenceCount))
     .limit(limit);
 
@@ -221,20 +223,87 @@ router.get("/analytics/error-trends", requireFeature(ANALYTICS), async (req, res
     totalOccurrences: sql<number>`sum(occurrence_count)`,
     patternCount: sql<number>`count(*)`,
     avgConfidence: sql<number>`round(avg(avg_confidence)::numeric, 2)`,
-  }).from(errorPatternsTable).groupBy(errorPatternsTable.domain).orderBy(desc(sql`sum(occurrence_count)`));
+  }).from(errorPatternsTable)
+    .where(gte(errorPatternsTable.createdAt, since))
+    .groupBy(errorPatternsTable.domain).orderBy(desc(sql`sum(occurrence_count)`));
 
   const recentEscalations = await db.select({
     toTier: escalationHistoryTable.toTier,
     count: sql<number>`count(*)`,
   }).from(escalationHistoryTable)
-    .where(gte(escalationHistoryTable.createdAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)))
+    .where(gte(escalationHistoryTable.createdAt, since))
     .groupBy(escalationHistoryTable.toTier);
 
   res.json({
+    period: { days, since: since.toISOString() },
     topPatterns: patterns,
     domainTrends: trendByDomain,
     escalationBreakdown: Object.fromEntries(recentEscalations.map(r => [r.toTier, Number(r.count)])),
     totalPatterns: patterns.length,
+  });
+});
+
+router.get("/analytics/error-categories", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { days, since } = parseDays(req.query.days as string);
+
+  // Domain classification: match case titles against known domain keywords
+  const DOMAIN_KEYWORDS: Array<{ domain: string; label: string; keywords: string[] }> = [
+    { domain: "connectivity",   label: "Connectivity",    keywords: ["network", "connect", "timeout", "dns", "socket", "ping", "firewall", "vpn", "proxy", "port"] },
+    { domain: "auth",           label: "Authentication",  keywords: ["login", "auth", "password", "token", "session", "permission", "401", "403", "access denied", "credential"] },
+    { domain: "performance",    label: "Performance",     keywords: ["slow", "latency", "memory", "cpu", "high load", "bottleneck", "response time", "leak", "throughput"] },
+    { domain: "database",       label: "Database",        keywords: ["database", "postgres", "mysql", "sql", "query", "deadlock", "migration", "db error", "connection pool"] },
+    { domain: "deployment",     label: "Deployment",      keywords: ["deploy", "container", "docker", "kubernetes", "pod", "crash", "restart", "build", "pipeline", "ci/cd"] },
+    { domain: "api",            label: "API / Integration", keywords: ["api", "endpoint", "rest", "webhook", "integration", "payload", "response", "request", "http", "500"] },
+    { domain: "storage",        label: "Storage",         keywords: ["disk", "storage", "file", "bucket", "upload", "s3", "volume", "space", "quota"] },
+    { domain: "security",       label: "Security",        keywords: ["security", "vulnerability", "breach", "exploit", "malware", "attack", "ssl", "certificate", "tls"] },
+    { domain: "configuration",  label: "Configuration",   keywords: ["config", "environment", "env var", "setting", "misconfigured", "yaml", "json", "toml"] },
+    { domain: "other",          label: "Other",           keywords: [] },
+  ];
+
+  // Fetch case titles and descriptions in the period
+  const cases = await pool.query(
+    `SELECT title, description FROM cases
+     WHERE user_id = $1 AND created_at >= $2`,
+    [authReq.user.id, since.toISOString()]
+  );
+
+  const domainCounts: Record<string, number> = {};
+  for (const def of DOMAIN_KEYWORDS) { domainCounts[def.domain] = 0; }
+
+  for (const row of cases.rows as Array<{ title: string; description?: string }>) {
+    const text = `${row.title || ""} ${row.description || ""}`.toLowerCase();
+    let matched = false;
+    for (const def of DOMAIN_KEYWORDS) {
+      if (def.keywords.length === 0) continue;
+      if (def.keywords.some(kw => text.includes(kw))) {
+        domainCounts[def.domain]++;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) domainCounts["other"]++;
+  }
+
+  const categories = DOMAIN_KEYWORDS
+    .map(def => ({
+      domain:  def.domain,
+      label:   def.label,
+      count:   domainCounts[def.domain] || 0,
+      percentage: cases.rows.length > 0
+        ? Math.round(((domainCounts[def.domain] || 0) / cases.rows.length) * 100)
+        : 0,
+    }))
+    .filter(c => c.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  res.json({
+    period:     { days, since: since.toISOString() },
+    totalCases: cases.rows.length,
+    categories,
   });
 });
 
@@ -297,7 +366,7 @@ router.get("/analytics/pipeline-performance", requireFeature(ANALYTICS), async (
   });
 });
 
-router.get("/analytics/kpi", async (req, res: Response): Promise<void> => {
+router.get("/analytics/kpi", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
