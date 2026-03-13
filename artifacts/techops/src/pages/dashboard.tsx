@@ -30,7 +30,6 @@ const INTEGRATIONS = [
   { name: "Slack", slug: "slack", color: "4A154B", status: "connected", brand: "#4A154B" },
   { name: "Google Workspace", slug: "googleworkspace", color: "00A4FF", status: "connected", brand: "#4285F4" },
   { name: "GitHub", slug: "github", color: "181717", status: "connected", brand: "#181717" },
-  { name: "Stripe", slug: "stripe", color: "635BFF", status: "connected", brand: "#635BFF" },
   { name: "Zapier", slug: "zapier", color: "FF4A00", status: "monitoring", brand: "#FF4A00" },
   { name: "Notion", slug: "notion", color: "000000", status: "monitoring", brand: "#000000" },
   { name: "Microsoft 365", slug: "microsoft", color: "00A4EF", status: "connected", brand: "#00A4EF" },

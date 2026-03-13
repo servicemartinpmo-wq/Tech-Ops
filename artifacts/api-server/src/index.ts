@@ -1,41 +1,8 @@
-import { runMigrations } from 'stripe-replit-sync';
-import { getStripeSync } from "./stripeClient";
 import app from "./app";
 import { startProactiveMonitor } from "./kb/proactive-monitor";
 import { startAutomationEngine } from "./automationEngine";
 import { seedKnowledgeBase } from "./services/seedKnowledge";
 import { pool } from "@workspace/db";
-
-async function initStripe() {
-  const databaseUrl = process.env.DATABASE_URL;
-
-  if (!databaseUrl) {
-    console.warn('DATABASE_URL not set — skipping Stripe initialization');
-    return;
-  }
-
-  try {
-    console.log('Initializing Stripe schema...');
-    await runMigrations({ databaseUrl });
-    console.log('Stripe schema ready');
-
-    const stripeSync = await getStripeSync();
-
-    console.log('Setting up managed webhook...');
-    const webhookBaseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-    await stripeSync.findOrCreateManagedWebhook(
-      `${webhookBaseUrl}/api/stripe/webhook`
-    );
-    console.log('Webhook configured');
-
-    console.log('Syncing Stripe data...');
-    stripeSync.syncBackfill()
-      .then(() => console.log('Stripe data synced'))
-      .catch((err: unknown) => console.error('Error syncing Stripe data:', err));
-  } catch (error) {
-    console.error('Failed to initialize Stripe:', error);
-  }
-}
 
 async function main() {
   const rawPort = process.env["PORT"];
@@ -49,8 +16,6 @@ async function main() {
   if (Number.isNaN(port) || port <= 0) {
     throw new Error(`Invalid PORT value: "${rawPort}"`);
   }
-
-  await initStripe();
 
   try {
     await pool.query("CREATE EXTENSION IF NOT EXISTS vector");
