@@ -42,7 +42,7 @@ artifacts-monorepo/
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
-│   │   └── src/schema/     # auth.ts, cases.ts, conversations.ts, messages.ts, batches.ts
+│   │   └── src/schema/     # auth.ts, cases.ts, conversations.ts, messages.ts, batches.ts, knowledge.ts
 │   └── integrations/       # OpenAI integration
 ├── scripts/
 │   └── src/seed-products.ts # Stripe product seeding script
@@ -53,7 +53,8 @@ artifacts-monorepo/
 
 ## Key Features
 
-1. **Apphia Diagnostic Pipeline** (7-stage): Classification, typed signal extraction, UDO graph traversal, probabilistic root cause ranking, confidence gating, guardrails/cost gate, resolution synthesis with self-assessment — all via SSE streaming. Myers-Briggs preferences profile injected into all 7 pipeline tiers.
+1. **Apphia Knowledge Graph**: PostgreSQL-backed knowledge layer with pgvector schema (for future OpenAI embeddings) + pg_trgm trigram similarity + full-text search for semantic retrieval. 15 seeded knowledge_nodes across 7 domains (Networking, OS, Database, Cloud, Security, DevOps, Application) with 46 knowledge_edges. CRUD API with RBAC (owner/admin for mutations). `/api/kb/search?q=...` returns ranked results by combined trigram + FTS + confidence score.
+2. **Apphia Diagnostic Pipeline** (7-stage): Classification, typed signal extraction, UDO graph traversal, probabilistic root cause ranking, confidence gating, guardrails/cost gate, resolution synthesis with self-assessment — all via SSE streaming. Myers-Briggs preferences profile injected into all 7 pipeline tiers.
 2. **Batch Diagnostics**: Persistent batch entities with tier-based concurrency limits (starter=1, professional=5, business=20, enterprise=unlimited), per-case pause/cancel, cross-case pattern detection
 3. **Stripe Subscription Billing**: 4 tiers (Foundation $149, Professional $349, Compliance $749, Enterprise Custom) with Checkout + Customer Portal, webhook sync
 4. **Tier Gating + RBAC**: Tier aliases (foundation→starter, proactive→professional, compliance→business) normalized in tierGating.ts; owner/admin/viewer roles
@@ -81,6 +82,8 @@ artifacts-monorepo/
 - `batches` - Batch diagnostic jobs with concurrency limits
 - `batch_cases` - Individual cases within a batch
 - `diagnostic_attempts` - Per-tier diagnostic attempt records with signals, UDO graph, root causes
+- `knowledge_nodes` - Knowledge graph nodes with domain, symptoms, resolution steps, search_text (pg_trgm), embedding (pgvector), confidence_score
+- `knowledge_edges` - Relationships between knowledge nodes (domain_related, etc.) with weight
 - `system_alerts` - System notifications with severity and acknowledgment
 - `audit_log` - Audit trail of user actions
 - `stripe.*` - Synced Stripe data (products, prices, subscriptions, customers)
@@ -110,6 +113,14 @@ artifacts-monorepo/
 - `GET /api/stripe/subscription` - Get user's subscription
 - `POST /api/stripe/checkout` - Create checkout session
 - `POST /api/stripe/portal` - Create billing portal session
+- `GET /api/kb/search?q=...` - Semantic search across knowledge nodes (pg_trgm + FTS)
+- `GET /api/kb/entries` - List knowledge nodes (supports domain + search filters)
+- `GET /api/kb/entries/:id` - Get knowledge node with edges and related nodes
+- `POST /api/kb/entries` - Create knowledge node (owner/admin only)
+- `PATCH /api/kb/entries/:id` - Update knowledge node (owner/admin only)
+- `DELETE /api/kb/entries/:id` - Delete knowledge node (owner/admin only)
+- `POST /api/kb/lookup` - Vector lookup returning UDI + decision tree (DB-backed)
+- `POST /api/kb/feedback` - Submit feedback to adjust node confidence scores
 - `POST /api/openai/conversations` - Create chat conversation
 - `GET /api/openai/conversations` - List conversations
 - `POST /api/openai/conversations/:id/messages` - Send message (SSE)

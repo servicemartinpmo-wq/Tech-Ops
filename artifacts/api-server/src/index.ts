@@ -3,6 +3,7 @@ import { getStripeSync } from "./stripeClient";
 import app from "./app";
 import { startProactiveMonitor } from "./kb/proactive-monitor";
 import { startAutomationEngine } from "./automationEngine";
+import { seedKnowledgeBase } from "./services/seedKnowledge";
 
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -49,6 +50,10 @@ async function main() {
   }
 
   await initStripe();
+
+  seedKnowledgeBase()
+    .then(result => console.log(`Knowledge base seed: ${result.nodesCreated} nodes, ${result.edgesCreated} edges`))
+    .catch(err => console.error("Knowledge base seed error:", err));
 
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
