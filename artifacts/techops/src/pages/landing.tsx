@@ -2,7 +2,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { Redirect } from "wouter";
 import { Button } from "@/components/ui";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen, Play, Star, Quote } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Sparkles, Zap, Shield, Brain, Activity, Cpu, BookOpen, Star, Quote } from "lucide-react";
 import { useRef, useState } from "react";
 
 const BASE = import.meta.env.BASE_URL;
@@ -152,34 +152,6 @@ const TESTIMONIALS = [
   },
 ];
 
-function DemoButton() {
-  const [loading, setLoading] = useState(false);
-
-  const handleDemo = async () => {
-    setLoading(true);
-    try {
-      const base = (import.meta.env.BASE_URL as string ?? "/").replace(/\/$/, "");
-      const res = await fetch(`${base}/api/demo/session`, { method: "POST", credentials: "include" });
-      if (res.ok) {
-        const baseUrl = import.meta.env.BASE_URL as string ?? "/";
-        window.location.href = `${baseUrl}dashboard`.replace(/\/+/g, "/");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={() => void handleDemo()}
-      disabled={loading}
-      className="h-14 px-8 flex items-center gap-2.5 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-full text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-60"
-    >
-      <Play className="w-4 h-4 text-violet-500" />
-      {loading ? "Loading Demo…" : "Try Demo"}
-    </button>
-  );
-}
 
 function SocialProofSection() {
   return (
@@ -301,7 +273,6 @@ function LightHero({ onLogin }: { onLogin: () => void }) {
               Enter the Platform
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
-            <DemoButton />
             <a
               href="#pricing"
               className="h-14 px-8 flex items-center text-slate-600 hover:text-slate-900 border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-all shadow-sm"
