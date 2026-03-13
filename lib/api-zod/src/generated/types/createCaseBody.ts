@@ -7,8 +7,16 @@
  */
 import type { CreateCaseBodyPriority } from "./createCaseBodyPriority";
 
+export interface CaseAttachment {
+  name: string;
+  type: string;
+  size: number;
+  data: string;
+}
+
 export interface CreateCaseBody {
   title: string;
   description?: string;
   priority?: CreateCaseBodyPriority;
+  attachments?: CaseAttachment[];
 }

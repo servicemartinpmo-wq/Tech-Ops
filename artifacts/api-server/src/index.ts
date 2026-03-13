@@ -2,6 +2,7 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripeClient";
 import app from "./app";
 import { startProactiveMonitor } from "./kb/proactive-monitor";
+import { startAutomationEngine } from "./automationEngine";
 
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -52,6 +53,7 @@ async function main() {
   app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
     startProactiveMonitor(5 * 60 * 1000);
+    startAutomationEngine(5 * 60 * 1000);
   });
 }
 

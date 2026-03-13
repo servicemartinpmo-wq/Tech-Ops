@@ -192,6 +192,12 @@ export const CreateCaseBody = zod.object({
   title: zod.string(),
   description: zod.string().optional(),
   priority: zod.enum(["low", "medium", "high", "critical"]).optional(),
+  attachments: zod.array(zod.object({
+    name: zod.string(),
+    type: zod.string(),
+    size: zod.number(),
+    data: zod.string(),
+  })).optional(),
 });
 
 export const GetCaseParams = zod.object({

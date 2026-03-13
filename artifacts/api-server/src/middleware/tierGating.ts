@@ -6,37 +6,64 @@ import type { AuthenticatedRequest } from "../types";
 const TIER_LIMITS: Record<string, {
   maxCases: number;
   maxBatchConcurrency: number;
+  maxConcurrentTickets: number;
   features: string[];
 }> = {
   free: {
     maxCases: 3,
     maxBatchConcurrency: 1,
+    maxConcurrentTickets: 1,
     features: ["basic_diagnostics"],
   },
-  individual: {
-    maxCases: 10,
+  starter: {
+    maxCases: 25,
     maxBatchConcurrency: 1,
-    features: ["basic_diagnostics", "single_connector"],
+    maxConcurrentTickets: 1,
+    features: ["basic_diagnostics", "single_connector", "vault", "kb_lookup"],
   },
   professional: {
-    maxCases: 50,
-    maxBatchConcurrency: 5,
-    features: ["advanced_diagnostics", "multi_connector", "preferences_quiz", "batch_execution"],
+    maxCases: 100,
+    maxBatchConcurrency: 2,
+    maxConcurrentTickets: 2,
+    features: [
+      "advanced_diagnostics", "multi_connector", "preferences_quiz",
+      "batch_execution", "automation_center", "cybersecurity_monitoring",
+      "cloud_management", "vault", "kb_lookup",
+    ],
   },
   business: {
-    maxCases: 200,
-    maxBatchConcurrency: 20,
-    features: ["full_diagnostics", "automation_center", "connector_monitoring", "batch_execution", "priority_support"],
+    maxCases: 500,
+    maxBatchConcurrency: 5,
+    maxConcurrentTickets: 5,
+    features: [
+      "full_diagnostics", "automation_center", "connector_monitoring",
+      "batch_execution", "priority_support", "hipaa_compliance",
+      "audit_trail", "sla_monitoring", "vault", "kb_lookup",
+      "cybersecurity_monitoring", "cloud_management",
+    ],
   },
   enterprise: {
     maxCases: Infinity,
     maxBatchConcurrency: Infinity,
+    maxConcurrentTickets: Infinity,
     features: ["all_features", "custom_integrations", "dedicated_support", "sla_guarantee"],
   },
 };
 
+const TIER_ALIASES: Record<string, string> = {
+  individual: "starter",
+  foundation: "starter",
+  proactive: "professional",
+  compliance: "business",
+};
+
+export function normalizeTier(tier: string): string {
+  const lower = (tier || "free").toLowerCase();
+  return TIER_ALIASES[lower] || lower;
+}
+
 export function getTierLimits(tier: string) {
-  return TIER_LIMITS[tier] || TIER_LIMITS.free;
+  return TIER_LIMITS[normalizeTier(tier)] || TIER_LIMITS.free;
 }
 
 export function requireFeature(feature: string) {
@@ -48,7 +75,7 @@ export function requireFeature(feature: string) {
     }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, authReq.user.id));
-    const tier = user?.subscriptionTier || "free";
+    const tier = normalizeTier(user?.subscriptionTier || "free");
     const limits = getTierLimits(tier);
 
     if (!limits.features.includes(feature) && !limits.features.includes("all_features")) {
@@ -90,7 +117,7 @@ export function requireRole(...roles: string[]) {
 
 function getMinTierForFeature(feature: string): string {
   for (const [tier, limits] of Object.entries(TIER_LIMITS)) {
-    if (limits.features.includes(feature)) return tier;
+    if (limits.features.includes(feature) || limits.features.includes("all_features")) return tier;
   }
   return "enterprise";
 }

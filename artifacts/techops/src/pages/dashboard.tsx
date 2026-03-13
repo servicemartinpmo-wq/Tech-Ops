@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import { useApiBase } from "@/hooks/use-api-base";
+import { OnboardingModal } from "@/components/onboarding-modal";
 
 function AnimatedCounter({ value, suffix = "" }: { value: number | string; suffix?: string }) {
   const [display, setDisplay] = useState(0);
@@ -215,6 +216,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <OnboardingModal />
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-display font-extrabold text-slate-900">Platform Overview</h1>

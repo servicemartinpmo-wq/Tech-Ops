@@ -1,9 +1,37 @@
 import { Router, type IRouter, type Response } from "express";
 import { eq, desc, and } from "drizzle-orm";
-import { db, conversations as conversationsTable, messages as messagesTable } from "@workspace/db";
+import { db, conversations as conversationsTable, messages as messagesTable, usersTable } from "@workspace/db";
 import { CreateOpenaiConversationBody, SendOpenaiMessageBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
+
+function buildApphiaSystemPrompt(profile?: { communicationStyle?: string; detailLevel?: string; technicalDepth?: string; proactivity?: string } | null): string {
+  const base = `You are Apphia, the knowledge engine for Tech-Ops by Martin PMO. You help diagnose, repair, and monitor technology operations. You are professional, thorough, and supportive. Never refer to yourself as "AI", "assistant", or "bot" — you are "Apphia" or "the knowledge engine".`;
+
+  if (!profile) return base + " Speak in a calm, professional tone.";
+
+  const styleMap: Record<string, string> = {
+    concise: "Be concise — deliver key findings with minimal prose. Use bullet points and short paragraphs.",
+    balanced: "Provide a balanced overview — key findings with enough context to act.",
+    detailed: "Be thorough and comprehensive — explain your reasoning step by step with full technical detail.",
+  };
+  const depthMap: Record<string, string> = {
+    simplified: "Use plain, non-technical language. Avoid jargon. Explain everything as you would to a business owner, not an engineer.",
+    moderate: "Use industry-standard terminology but explain technical concepts when they appear.",
+    technical: "Use precise engineering language. Include specifics: port numbers, stack traces, config values, system calls.",
+  };
+  const detailMap: Record<string, string> = {
+    summary: "Keep reports high-level — just the root cause and fix. Skip deep analysis.",
+    standard: "Include the main findings, supporting evidence, and recommended resolution steps.",
+    comprehensive: "Provide full signal extraction, dependency mapping, failure prediction, and complete reasoning chain.",
+  };
+
+  const style = styleMap[profile.communicationStyle || "balanced"] || styleMap.balanced;
+  const depth = depthMap[profile.technicalDepth || "moderate"] || depthMap.moderate;
+  const detail = detailMap[profile.detailLevel || "standard"] || detailMap.standard;
+
+  return `${base}\n\nUser communication profile:\n- Style: ${style}\n- Technical depth: ${depth}\n- Report detail: ${detail}\n\nAlways adapt your tone and depth to match this profile exactly.`;
+}
 
 const router: IRouter = Router();
 
@@ -163,10 +191,20 @@ router.post("/openai/conversations/:id/messages", async (req, res: Response): Pr
     .where(eq(messagesTable.conversationId, id))
     .orderBy(messagesTable.createdAt);
 
+  const [userRecord] = await db
+    .select({ preferencesProfile: usersTable.preferencesProfile })
+    .from(usersTable)
+    .where(eq(usersTable.id, authReq.user.id));
+
+  let apphiaProfile = null;
+  if (userRecord?.preferencesProfile) {
+    try { apphiaProfile = JSON.parse(userRecord.preferencesProfile); } catch { /* default */ }
+  }
+
   const chatMessages = [
     {
       role: "system" as const,
-      content: `You are Apphia, the knowledge engine for Tech-Ops by Martin PMO. You help diagnose, repair, and monitor technology operations. You are professional, thorough, and supportive. Never refer to yourself as "AI", "assistant", or "bot" — you are "Apphia" or "the knowledge engine". Speak in a calm, professional tone.`,
+      content: buildApphiaSystemPrompt(apphiaProfile),
     },
     ...history.map((m) => ({
       role: m.role as "user" | "assistant",

@@ -163,10 +163,18 @@ export const CreateCaseBodyPriority = {
   critical: "critical",
 } as const;
 
+export interface CaseAttachment {
+  name: string;
+  type: string;
+  size: number;
+  data: string;
+}
+
 export interface CreateCaseBody {
   title: string;
   description?: string;
   priority?: CreateCaseBodyPriority;
+  attachments?: CaseAttachment[];
 }
 
 export type UpdateCaseBodyStatus =

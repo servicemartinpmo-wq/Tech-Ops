@@ -6,9 +6,9 @@ import { Card, Button, Badge } from "@/components/ui";
 import {
   ArrowLeft, Play, Terminal, CheckCircle2, AlertTriangle, ShieldAlert, Brain,
   GitBranch, ThumbsUp, ThumbsDown, Zap, AlertCircle, ChevronRight, BookOpen,
-  ArrowRight, Cpu, Monitor, X
+  ArrowRight, Cpu, Monitor, X, Clock, FileText, ImageIcon, Paperclip
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -521,6 +521,20 @@ export default function CaseDetail() {
                   <span className={`text-xs font-semibold capitalize ${row.highlight ? "text-sky-600" : "text-slate-700"}`}>{row.value}</span>
                 </div>
               ))}
+
+              {(diagnosticCase as unknown as { slaDeadline?: string | null }).slaDeadline && (() => {
+                const deadline = new Date((diagnosticCase as unknown as { slaDeadline: string }).slaDeadline);
+                const isBreached = deadline < new Date();
+                const slaStatus = (diagnosticCase as unknown as { slaStatus?: string }).slaStatus || "on_track";
+                const label = isBreached || slaStatus === "breached" ? "SLA BREACHED" : `Due ${formatDistanceToNow(deadline, { addSuffix: true })}`;
+                const cls = isBreached || slaStatus === "breached" ? "text-red-500" : deadline.getTime() - Date.now() < 2 * 3600 * 1000 ? "text-amber-500" : "text-emerald-500";
+                return (
+                  <div className="flex justify-between py-2 border-b border-slate-50 last:border-0">
+                    <span className="text-slate-400 text-xs flex items-center gap-1"><Clock className="w-3 h-3" /> SLA</span>
+                    <span className={`text-xs font-semibold ${cls}`}>{label}</span>
+                  </div>
+                );
+              })()}
             </div>
           </Card>
 
@@ -539,6 +553,43 @@ export default function CaseDetail() {
               </div>
             </Card>
           )}
+
+          {(diagnosticCase as unknown as { attachments?: Array<{name: string; type: string; size: number; data: string}> | null }).attachments && (() => {
+            const atts = (diagnosticCase as unknown as { attachments: Array<{name: string; type: string; size: number; data: string}> }).attachments;
+            if (!atts?.length) return null;
+            return (
+              <Card className="p-4 border-slate-100">
+                <h3 className="font-display font-bold text-slate-900 mb-3 text-sm flex items-center gap-2">
+                  <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                  Attachments ({atts.length})
+                </h3>
+                <div className="space-y-2">
+                  {atts.map((att, i) => {
+                    const isImage = att.type.startsWith("image/");
+                    const sizeLabel = att.size < 1024 ? `${att.size}B` : att.size < 1024*1024 ? `${(att.size/1024).toFixed(1)}KB` : `${(att.size/(1024*1024)).toFixed(1)}MB`;
+                    return (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                        {isImage ? <ImageIcon className="w-4 h-4 text-violet-400 shrink-0" /> : <FileText className="w-4 h-4 text-sky-400 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-slate-700 truncate">{att.name}</p>
+                          <p className="text-[10px] text-slate-400">{sizeLabel}</p>
+                        </div>
+                        {isImage && (
+                          <a
+                            href={`data:${att.type};base64,${att.data}`}
+                            download={att.name}
+                            className="text-[10px] text-sky-500 hover:text-sky-600 font-medium"
+                          >
+                            View
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            );
+          })()}
 
           {!decisionData && (
             <Card className="p-4 border-dashed border-violet-200 bg-violet-50/40">

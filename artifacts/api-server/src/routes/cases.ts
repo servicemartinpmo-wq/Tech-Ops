@@ -1,12 +1,33 @@
 import { Router, type IRouter, type Response } from "express";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
-import { db, casesTable, diagnosticAttemptsTable } from "@workspace/db";
+import { db, casesTable, diagnosticAttemptsTable, usersTable } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
 import type { Case } from "@workspace/db";
 import { getTierLimits } from "../middleware/tierGating";
 import { lookupKB, buildSystemPrompt } from "../kb/knowledge-base";
+import { sendEmail, buildCriticalCaseEmail } from "../emailService";
+
+const SLA_HOURS: Record<string, number> = {
+  critical: 4,
+  high: 8,
+  medium: 24,
+  low: 72,
+};
+
+function getSlaDeadline(priority: string): Date {
+  const hours = SLA_HOURS[priority] ?? 24;
+  return new Date(Date.now() + hours * 60 * 60 * 1000);
+}
+
+function buildApphiaDiagnosticPrompt(profile?: { communicationStyle?: string; detailLevel?: string; technicalDepth?: string } | null): string {
+  const base = `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. Never refer to yourself as "AI", "assistant", or "bot" — you are "Apphia" or "the Apphia Engine".`;
+  if (!profile) return base;
+  const depth = { simplified: "use plain language", moderate: "use standard technical terms", technical: "use precise engineering-level language" }[profile.technicalDepth || "moderate"] || "use standard technical terms";
+  const detail = { summary: "keep your analysis concise", standard: "provide standard diagnostic depth", comprehensive: "provide exhaustive analysis" }[profile.detailLevel || "standard"] || "provide standard diagnostic depth";
+  return `${base} For this user: ${depth}, and ${detail}.`;
+}
 
 async function countUserCasesForQuota(userId: string): Promise<number> {
   const result = await db
@@ -61,15 +82,38 @@ router.post("/cases", async (req, res: Response): Promise<void> => {
     return;
   }
 
+  const priority = parsed.data.priority || "medium";
+  const slaDeadline = getSlaDeadline(priority);
+  const attachments = parsed.data.attachments || null;
+
   const [newCase] = await db
     .insert(casesTable)
     .values({
       userId: authReq.user.id,
       title: parsed.data.title,
       description: parsed.data.description,
-      priority: parsed.data.priority || "medium",
+      priority,
+      slaDeadline,
+      slaStatus: "on_track",
+      attachments: attachments as never,
     })
     .returning();
+
+  if (priority === "critical" || priority === "high") {
+    try {
+      const [userRecord] = await db
+        .select({ email: usersTable.email })
+        .from(usersTable)
+        .where(eq(usersTable.id, authReq.user.id));
+
+      if (userRecord?.email) {
+        const emailPayload = buildCriticalCaseEmail(newCase.title, priority, newCase.id, userRecord.email);
+        sendEmail(emailPayload).catch(e => console.error("[Cases] Email error:", e));
+      }
+    } catch (e) {
+      console.error("[Cases] Failed to send critical case email:", e);
+    }
+  }
 
   res.status(201).json(newCase);
 });
@@ -217,6 +261,19 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
     const udi = lookupKB(caseItem.title + " " + (caseItem.description || ""));
     const kbSystemPrompt = buildSystemPrompt(udi);
 
+    let userProfile = null;
+    try {
+      const [userRecord] = await db
+        .select({ preferencesProfile: usersTable.preferencesProfile })
+        .from(usersTable)
+        .where(eq(usersTable.id, authReq.user.id));
+      if (userRecord?.preferencesProfile) {
+        userProfile = JSON.parse(userRecord.preferencesProfile);
+      }
+    } catch { /* use default */ }
+
+    const profileSuffix = buildApphiaDiagnosticPrompt(userProfile);
+
     sendEvent({ type: "udi", data: { udiId: udi.udiId, domain: udi.domain, confidenceScore: udi.confidenceScore, kbId: udi.kbId, action: udi.action } });
     sendEvent({ type: "progress", message: "Stage 1/7: Classification & Signal Extraction" });
 
@@ -234,8 +291,8 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
       const tierPrompt = getTierPrompt(tier, caseItem, pipelineContext);
 
       const systemContent = tier === 1
-        ? kbSystemPrompt + `\n\nYou are executing ${stageName} of the 7-stage diagnostic pipeline.`
-        : `You are Apphia, the diagnostic knowledge engine for Tech-Ops by Martin PMO. You are executing ${stageName} of the staged diagnostic pipeline. Be thorough, precise, and structured. Never refer to yourself as "AI" or "assistant". You are "the Apphia Engine" or "Apphia".`;
+        ? kbSystemPrompt + `\n\nYou are executing ${stageName} of the 7-stage diagnostic pipeline.\n\n${profileSuffix}`
+        : `${profileSuffix}\n\nYou are executing ${stageName} of the staged diagnostic pipeline. Be thorough, precise, and structured.`;
 
       const stream = await openai.chat.completions.create({
         model: "gpt-4o",

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -15,6 +15,10 @@ export const casesTable = pgTable("cases", {
   signals: jsonb("signals"),
   udoPath: jsonb("udo_path"),
   confidenceScore: integer("confidence_score"),
+  attachments: jsonb("attachments"),
+  slaDeadline: timestamp("sla_deadline", { withTimezone: true }),
+  slaStatus: text("sla_status").default("on_track"),
+  escalated: boolean("escalated").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
