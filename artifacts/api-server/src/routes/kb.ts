@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Response } from "express";
-import { db, casesTable, knowledgeNodesTable, knowledgeEdgesTable } from "@workspace/db";
+import { db, pool, casesTable, knowledgeNodesTable, knowledgeEdgesTable } from "@workspace/db";
 import { eq, and, desc, sql, ilike, or, inArray } from "drizzle-orm";
 import { classifySeverity, classifyIntent } from "../kb/knowledge-base";
 import { buildDecisionTree } from "../kb/decision-engine";
@@ -14,57 +14,63 @@ async function vectorSearch(query: string, options?: { domain?: string; limit?: 
   const limit = options?.limit || 10;
   const queryEmbedding = await generateEmbedding(query);
   const embeddingStr = `[${queryEmbedding.join(",")}]`;
-  const domainFilter = options?.domain
-    ? `AND domain ILIKE '${options.domain.replace(/'/g, "''")}'`
-    : "";
 
-  const results = await db.execute(sql.raw(`
-    SELECT
+  const params: unknown[] = [embeddingStr, limit];
+  let domainClause = "";
+  if (options?.domain) {
+    params.push(options.domain);
+    domainClause = `AND domain ILIKE $${params.length}`;
+  }
+
+  const result = await pool.query(
+    `SELECT
       id, external_id, domain, subdomain, title, type, description,
       symptoms, resolution_steps, tags, tier, self_healable,
       escalation_conditions, estimated_time, confidence_score,
       historical_success, search_text, created_at,
-      1 - (embedding <=> '${embeddingStr}'::vector) as vector_similarity
+      1 - (embedding <=> $1::vector) AS vector_similarity
     FROM knowledge_nodes
-    WHERE embedding IS NOT NULL
-    ${domainFilter}
-    ORDER BY embedding <=> '${embeddingStr}'::vector
-    LIMIT ${limit}
-  `));
+    WHERE embedding IS NOT NULL ${domainClause}
+    ORDER BY embedding <=> $1::vector
+    LIMIT $2`,
+    params
+  );
 
-  return (results.rows || []) as Array<Record<string, unknown>>;
+  return (result.rows || []) as Array<Record<string, unknown>>;
 }
 
 async function textSearch(query: string, options?: { domain?: string; limit?: number }): Promise<Array<Record<string, unknown>>> {
   const limit = options?.limit || 10;
-  const cleanQuery = query.replace(/'/g, "''").toLowerCase();
-  const domainFilter = options?.domain
-    ? `AND domain ILIKE '${options.domain.replace(/'/g, "''")}'`
-    : "";
+  const params: unknown[] = [query.toLowerCase(), limit];
+  let domainClause = "";
+  if (options?.domain) {
+    params.push(options.domain);
+    domainClause = `AND domain ILIKE $${params.length}`;
+  }
 
-  const results = await db.execute(sql.raw(`
-    SELECT
+  const result = await pool.query(
+    `SELECT
       id, external_id, domain, subdomain, title, type, description,
       symptoms, resolution_steps, tags, tier, self_healable,
       escalation_conditions, estimated_time, confidence_score,
       historical_success, search_text, created_at,
-      similarity(search_text, '${cleanQuery}') as trgm_similarity,
-      ts_rank(to_tsvector('english', coalesce(search_text, '')), plainto_tsquery('english', '${cleanQuery}')) as fts_rank
+      similarity(search_text, $1) AS trgm_similarity,
+      ts_rank(to_tsvector('english', coalesce(search_text, '')), plainto_tsquery('english', $1)) AS fts_rank
     FROM knowledge_nodes
     WHERE (
-      to_tsvector('english', coalesce(search_text, '')) @@ plainto_tsquery('english', '${cleanQuery}')
-      OR similarity(search_text, '${cleanQuery}') > 0.03
-    )
-    ${domainFilter}
+      to_tsvector('english', coalesce(search_text, '')) @@ plainto_tsquery('english', $1)
+      OR similarity(search_text, $1) > 0.03
+    ) ${domainClause}
     ORDER BY (
-      similarity(search_text, '${cleanQuery}') * 3.0 +
-      ts_rank(to_tsvector('english', coalesce(search_text, '')), plainto_tsquery('english', '${cleanQuery}')) * 1.0 +
+      similarity(search_text, $1) * 3.0 +
+      ts_rank(to_tsvector('english', coalesce(search_text, '')), plainto_tsquery('english', $1)) * 1.0 +
       confidence_score * 0.2
     ) DESC
-    LIMIT ${limit}
-  `));
+    LIMIT $2`,
+    params
+  );
 
-  return (results.rows || []) as Array<Record<string, unknown>>;
+  return (result.rows || []) as Array<Record<string, unknown>>;
 }
 
 async function searchKnowledge(query: string, options?: { domain?: string; limit?: number }) {

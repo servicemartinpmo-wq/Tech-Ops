@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import {
-  db, casesTable, diagnosticAttemptsTable, usersTable,
+  db, pool, casesTable, diagnosticAttemptsTable, usersTable,
   analyticsEventsTable, errorPatternsTable, escalationHistoryTable,
   knowledgeNodesTable,
 } from "@workspace/db";
@@ -86,16 +86,22 @@ async function kbSemanticSearch(query: string, domain?: string, limit = 5): Prom
   try {
     const embedding = await generateEmbedding(query);
     const embeddingStr = `[${embedding.join(",")}]`;
-    const domainFilter = domain ? `AND domain ILIKE '${domain.replace(/'/g, "''")}'` : "";
-    const rows = await db.execute(sql.raw(`
-      SELECT id, external_id, title, domain, subdomain, resolution_steps, symptoms, self_healable,
-        round((1 - (embedding <=> '${embeddingStr}'::vector))::numeric, 4) as similarity
+    const params: unknown[] = [embeddingStr, limit];
+    let domainClause = "";
+    if (domain) {
+      params.push(domain);
+      domainClause = `AND domain ILIKE $${params.length}`;
+    }
+    const result = await pool.query(
+      `SELECT id, external_id, title, domain, subdomain, resolution_steps, symptoms, self_healable,
+        round((1 - (embedding <=> $1::vector))::numeric, 4) AS similarity
       FROM knowledge_nodes
-      WHERE embedding IS NOT NULL ${domainFilter}
-      ORDER BY embedding <=> '${embeddingStr}'::vector
-      LIMIT ${limit}
-    `));
-    return (rows.rows as Array<Record<string, unknown>>).map(r => ({
+      WHERE embedding IS NOT NULL ${domainClause}
+      ORDER BY embedding <=> $1::vector
+      LIMIT $2`,
+      params
+    );
+    return (result.rows as Array<Record<string, unknown>>).map(r => ({
       id: Number(r.id), externalId: String(r.external_id), title: String(r.title),
       domain: String(r.domain), subdomain: r.subdomain ? String(r.subdomain) : null,
       resolutionSteps: r.resolution_steps as string[] ?? null,
