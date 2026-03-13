@@ -398,6 +398,34 @@ export default function BatchDiagnostics() {
                         className="overflow-hidden border-t border-white/[0.04]"
                       >
                         {renderBatchCases(batch.id)}
+                        {batch.crossCasePatterns && Object.keys(batch.crossCasePatterns).length > 0 && (() => {
+                          const p = batch.crossCasePatterns as {
+                            summary?: string;
+                            commonPattern?: string;
+                            dominantPriority?: string;
+                            repeatedRootCauseKeywords?: Array<{ keyword: string; count: number }>;
+                          };
+                          return (
+                            <div className="px-4 pb-4">
+                              <div className="rounded-xl bg-violet-50 border border-violet-200 p-4">
+                                <p className="text-xs font-semibold text-violet-700 mb-2">Cross-Case Pattern Analysis</p>
+                                {p.commonPattern && <p className="text-xs text-violet-600 mb-2">{p.commonPattern}</p>}
+                                <div className="flex flex-wrap gap-2">
+                                  {p.dominantPriority && (
+                                    <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium capitalize">
+                                      Dominant: {p.dominantPriority}
+                                    </span>
+                                  )}
+                                  {p.repeatedRootCauseKeywords?.map((kw) => (
+                                    <span key={kw.keyword} className="px-2 py-0.5 rounded-full bg-white border border-violet-200 text-violet-600 text-[10px]">
+                                      {kw.keyword} ×{kw.count}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </motion.div>
                     )}
                   </AnimatePresence>

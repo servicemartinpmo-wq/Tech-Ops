@@ -557,13 +557,122 @@ async function executeBatchAsync(batchId: number, caseIds: number[], userId: str
   let finalStatus = "completed";
   if (completed === 0 && (failed + systemErrors) > 0) finalStatus = "failed";
 
+  const crossCasePatterns = await detectCrossCasePatterns(batchId, userId);
+
   await db.update(batchesTable).set({
     status: finalStatus,
     completedCases: completed,
     failedCases: failed,
     systemErrorCases: systemErrors,
     completedAt: new Date(),
+    crossCasePatterns,
   }).where(and(eq(batchesTable.id, batchId), eq(batchesTable.status, "running")));
 }
+
+async function detectCrossCasePatterns(batchId: number, userId: string): Promise<Record<string, unknown>> {
+  const completedCases = await db
+    .select({
+      id: casesTable.id,
+      priority: casesTable.priority,
+      status: casesTable.status,
+      rootCause: casesTable.rootCause,
+      resolution: casesTable.resolution,
+    })
+    .from(casesTable)
+    .innerJoin(batchCasesTable, eq(batchCasesTable.caseId, casesTable.id))
+    .where(
+      and(
+        eq(batchCasesTable.batchId, batchId),
+        eq(batchCasesTable.status, "completed")
+      )
+    );
+
+  if (completedCases.length === 0) return {};
+
+  const priorityCounts = new Map<string, number>();
+  const rootCauseKeywords = new Map<string, number>();
+
+  for (const c of completedCases) {
+    if (c.priority) priorityCounts.set(c.priority, (priorityCounts.get(c.priority) || 0) + 1);
+    if (c.rootCause) {
+      const words = c.rootCause.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
+      for (const word of words) {
+        rootCauseKeywords.set(word, (rootCauseKeywords.get(word) || 0) + 1);
+      }
+    }
+  }
+
+  const priorityBreakdown = [...priorityCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([priority, count]) => ({ priority, count, pct: Math.round((count / completedCases.length) * 100) }));
+
+  const repeatedKeywords = [...rootCauseKeywords.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word, count]) => ({ keyword: word, count }));
+
+  const dominantPriority = priorityBreakdown[0]?.priority;
+
+  return {
+    summary: `Analyzed ${completedCases.length} completed cases`,
+    priorityBreakdown,
+    dominantPriority,
+    repeatedRootCauseKeywords: repeatedKeywords,
+    commonPattern: repeatedKeywords.length > 0
+      ? `Recurring theme: "${repeatedKeywords[0].keyword}" appears in ${repeatedKeywords[0].count} case root causes`
+      : "No dominant cross-case pattern detected",
+    detectedAt: new Date().toISOString(),
+  };
+}
+
+router.post("/batches/:id/cases", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const batchId = parseInt(req.params.id, 10);
+  const { caseIds } = req.body as { caseIds: number[] };
+  if (!caseIds?.length) { res.status(400).json({ error: "caseIds required" }); return; }
+
+  const [batch] = await db.select().from(batchesTable)
+    .where(and(eq(batchesTable.id, batchId), eq(batchesTable.userId, authReq.user.id)));
+  if (!batch) { res.status(404).json({ error: "Batch not found" }); return; }
+  if (batch.status === "cancelled" || batch.status === "completed") {
+    res.status(409).json({ error: `Cannot add cases to a ${batch.status} batch` }); return;
+  }
+
+  const ownedCases = await db.select({ id: casesTable.id }).from(casesTable)
+    .where(and(eq(casesTable.userId, authReq.user.id), inArray(casesTable.id, caseIds)));
+  const ownedIds = new Set(ownedCases.map((c) => c.id));
+  const invalidIds = caseIds.filter((id) => !ownedIds.has(id));
+  if (invalidIds.length > 0) {
+    res.status(403).json({ error: "Invalid case IDs", invalidIds }); return;
+  }
+
+  const existingCases = await db.select({ caseId: batchCasesTable.caseId }).from(batchCasesTable)
+    .where(and(eq(batchCasesTable.batchId, batchId), inArray(batchCasesTable.caseId, caseIds)));
+  const existingIds = new Set(existingCases.map((c) => c.caseId));
+  const newCaseIds = caseIds.filter((id) => !existingIds.has(id));
+
+  if (newCaseIds.length === 0) {
+    res.status(409).json({ error: "All specified cases are already in this batch" }); return;
+  }
+
+  for (const caseId of newCaseIds) {
+    await db.insert(batchCasesTable).values({ batchId, caseId, status: "pending" });
+  }
+
+  await db.update(batchesTable)
+    .set({ totalCases: batch.totalCases + newCaseIds.length })
+    .where(eq(batchesTable.id, batchId));
+
+  const { storage: storageModule } = await import("../storage");
+  const user = await storageModule.getUser(authReq.user.id);
+  const limits = getTierLimits(user?.subscriptionTier || "free");
+
+  executeBatchAsync(batchId, newCaseIds, authReq.user.id, limits.maxBatchConcurrency);
+
+  res.status(201).json({ added: newCaseIds.length, caseIds: newCaseIds });
+});
 
 export default router;

@@ -603,8 +603,7 @@ export default function SecureVault() {
                         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
                         style={{ borderColor: `${meta.color}30`, background: `${meta.color}10`, boxShadow: locked ? "none" : `0 0 12px ${meta.color}20` }}
                       >
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        {(() => { const Icon = meta.icon as any; return <Icon className="w-5 h-5" style={{ color: meta.color }} />; })()}
+                        <meta.icon className="w-5 h-5" />
                       </div>
 
                       <div className="flex-1 min-w-0">
