@@ -63,6 +63,8 @@ interface ErrorCategories {
 type Period = "7" | "30" | "90";
 type Tab = "overview" | "cases" | "pipeline" | "errors" | "connectors";
 
+const PERIOD_LABELS: Record<Period, string> = { "7": "7 days", "30": "30 days", "90": "90 days" };
+
 const COLORS = {
   violet: "#7c3aed", sky: "#0ea5e9", emerald: "#10b981", amber: "#f59e0b",
   rose: "#f43f5e", slate: "#94a3b8", indigo: "#6366f1", teal: "#14b8a6",
@@ -356,11 +358,11 @@ export default function Analytics() {
   }, [connHealth]);
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { id: "overview", label: "Overview", icon: BarChart3 },
-    { id: "cases", label: "Cases", icon: Activity },
-    { id: "pipeline", label: "Pipeline", icon: Zap },
-    { id: "errors", label: "Errors", icon: AlertTriangle },
-    { id: "connectors", label: "Connectors", icon: Wifi },
+    { id: "overview",   label: "Summary",        icon: BarChart3     },
+    { id: "cases",      label: "Tickets",         icon: Activity      },
+    { id: "pipeline",   label: "Processing",      icon: Zap           },
+    { id: "errors",     label: "Issue Patterns",  icon: AlertTriangle },
+    { id: "connectors", label: "Tool Uptime",     icon: Wifi          },
   ];
 
   return (
@@ -369,16 +371,16 @@ export default function Analytics() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <BarChart3 className="w-7 h-7 text-violet-600" />
-            Analytics & Performance
+            Reports
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Diagnostic performance, case metrics, and operational intelligence</p>
+          <p className="text-slate-500 text-sm mt-1">Your tech support performance — tickets, fix times, and tool health at a glance</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex border border-slate-200 rounded-lg overflow-hidden text-xs font-medium">
             {(["7", "30", "90"] as Period[]).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`px-3 py-1.5 transition-colors ${period === p ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
-                {p}d
+                {PERIOD_LABELS[p]}
               </button>
             ))}
           </div>
@@ -420,19 +422,19 @@ export default function Analytics() {
           {tab === "overview" && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Cases (30d)" value={kpi?.cases30d ?? 0} sub={`${kpi?.cases7d ?? 0} this week`} icon={Activity} color="text-slate-700" />
+                <StatCard label={`Tickets (${PERIOD_LABELS[period]})`} value={kpi?.cases30d ?? 0} sub={`${kpi?.cases7d ?? 0} this week`} icon={Activity} color="text-slate-700" />
                 <StatCard label="Resolution Rate" value={`${kpi?.resolutionRate30d ?? 0}%`} sub={`${kpi?.resolutionRate7d ?? 0}% this week`}
                   icon={CheckCircle2} color="text-emerald-600" trend={(kpi?.resolutionRate30d ?? 0) >= 70 ? "up" : "down"} />
-                <StatCard label="Avg Confidence" value={`${kpi?.avgConfidence30d ?? 0}%`} sub="30-day average"
+                <StatCard label="Apphia Accuracy" value={`${kpi?.avgConfidence30d ?? 0}%`} sub={`${PERIOD_LABELS[period]} average`}
                   icon={Target} color="text-violet-600" trend={(kpi?.avgConfidence30d ?? 0) >= 75 ? "up" : "neutral"} />
-                <StatCard label="SLA Compliance" value={sla ? `${sla.complianceRate}%` : "—"} sub={sla ? `${sla.breached} breaches` : ""}
+                <StatCard label="On-Time Rate" value={sla ? `${sla.complianceRate}%` : "—"} sub={sla ? `${sla.breached} SLA breach${sla.breached !== 1 ? "es" : ""}` : ""}
                   icon={ShieldCheck} color={sla && sla.complianceRate >= 90 ? "text-emerald-600" : "text-rose-600"}
                   trend={sla && sla.complianceRate >= 90 ? "up" : "down"} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Case Volume Trend</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Ticket Volume Trend</h3>
                   {volumeData.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">No case data in this period.</p>
                   ) : (
@@ -518,7 +520,7 @@ export default function Analytics() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Case Volume by Severity</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Ticket Volume by Severity</h3>
                   {volumeData.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">No data.</p>
                   ) : (
@@ -627,7 +629,7 @@ export default function Analytics() {
               </div>
 
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4">Resolution Metrics</h3>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Fix Performance</h3>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   {[
                     { label: "Avg Resolution", value: metrics?.resolution.avgMinutes ? `${Math.round(metrics.resolution.avgMinutes)}m` : "—" },
@@ -659,7 +661,7 @@ export default function Analytics() {
               </div>
 
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4">Stage Duration Breakdown</h3>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">How long each processing step takes</h3>
                 {stageData.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-10">No pipeline runs in this period.</p>
                 ) : (
@@ -677,7 +679,7 @@ export default function Analytics() {
               </Card>
 
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4">Token Usage by Stage</h3>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Engine usage by step</h3>
                 {stageData.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-10">No data.</p>
                 ) : (
@@ -701,7 +703,7 @@ export default function Analytics() {
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-slate-700">Top Issue Categories</h3>
-                  {errorCats && <span className="text-xs text-slate-400">{errorCats.totalCases} cases · last {period}d</span>}
+                  {errorCats && <span className="text-xs text-slate-400">{errorCats.totalCases} tickets · last {PERIOD_LABELS[period]}</span>}
                 </div>
                 {(errorCats?.categories || []).length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-10">No cases in this period.</p>
@@ -731,7 +733,7 @@ export default function Analytics() {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Error Domain Distribution</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Issue Types by Area</h3>
                   {domainData.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">No error patterns detected.</p>
                   ) : (
@@ -752,7 +754,7 @@ export default function Analytics() {
                 </Card>
 
                 <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Error Patterns</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Most Common Issues</h3>
                   {(trends?.topPatterns || []).length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">No error patterns yet.</p>
                   ) : (
@@ -833,7 +835,7 @@ export default function Analytics() {
                   )}
 
                   <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Average Latency by Connector</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Response Speed by Tool</h3>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={connectorData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
