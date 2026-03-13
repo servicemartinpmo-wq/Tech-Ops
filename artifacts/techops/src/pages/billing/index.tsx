@@ -1,25 +1,24 @@
-import { useListStripeProducts, useGetSubscription, useCreateCheckoutSession, useCreatePortalSession } from "@workspace/api-client-react";
-import { Card, Button, Badge } from "@/components/ui";
-import { Check, CreditCard, Sparkles, Zap, Shield, Brain, Building2, Gift } from "lucide-react";
-import { motion } from "framer-motion";
-import { useApiBase } from "@/hooks/use-api-base";
+import { useState } from "react";
+import { Card, Badge } from "@/components/ui";
+import {
+  Check, Zap, Shield, Brain, Building2, Gift,
+  CreditCard, ChevronRight, ExternalLink, X, Sparkles,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
-const PLAN_META: Record<string, {
-  color: string;
-  bg: string;
-  border: string;
-  icon: React.ComponentType<{ className?: string }>;
-  features: string[];
-  tagline: string;
-  mspEquiv?: string;
-}> = {
-  starter: {
+// ── Pricing Tiers ────────────────────────────────────────────────────────────
+
+const PLANS = [
+  {
+    key: "starter",
+    name: "Foundation",
+    price: "$49",
+    tagline: "Freelancers & solo operators",
+    mspEquiv: "vs. $100–$150/user MSP basic",
     color: "text-sky-400",
     bg: "bg-sky-500/10",
     border: "border-sky-500/20",
     icon: Zap,
-    tagline: "Freelancers & solo operators",
-    mspEquiv: "vs. $100–$150/user MSP basic",
     features: [
       "1 concurrent support ticket slot",
       "Apphia help desk — on-demand diagnostics & triage",
@@ -29,13 +28,17 @@ const PLAN_META: Record<string, {
       "Email escalation support (1–24 hr response)",
     ],
   },
-  professional: {
+  {
+    key: "professional",
+    name: "Proactive",
+    price: "$149",
+    tagline: "Small teams of 2–15 users",
+    mspEquiv: "vs. $150–$225/user MSP standard",
     color: "text-violet-400",
     bg: "bg-violet-500/10",
     border: "border-violet-500/20",
     icon: Brain,
-    tagline: "Small teams of 2–15 users",
-    mspEquiv: "vs. $150–$225/user MSP standard",
+    popular: true,
     features: [
       "2 concurrent support ticket slots",
       "Everything in Foundation",
@@ -46,13 +49,16 @@ const PLAN_META: Record<string, {
       "Priority email support (1–8 hr response)",
     ],
   },
-  business: {
+  {
+    key: "business",
+    name: "Compliance",
+    price: "$399",
+    tagline: "SMBs of 15–75 users",
+    mspEquiv: "vs. $250–$350+/user MSP compliance",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/20",
     icon: Shield,
-    tagline: "SMBs of 15–75 users",
-    mspEquiv: "vs. $250–$350+/user MSP compliance",
     features: [
       "5 concurrent support ticket slots",
       "Everything in Proactive",
@@ -63,12 +69,15 @@ const PLAN_META: Record<string, {
       "Personalized Apphia Engine configuration",
     ],
   },
-  enterprise: {
+  {
+    key: "enterprise",
+    name: "Enterprise",
+    price: "Custom",
+    tagline: "Large organizations, 75+ users",
     color: "text-amber-400",
     bg: "bg-amber-500/10",
     border: "border-amber-500/20",
     icon: Building2,
-    tagline: "Large organizations, 75+ users",
     features: [
       "Unlimited concurrent ticket slots",
       "Private Apphia Engine license",
@@ -79,225 +88,303 @@ const PLAN_META: Record<string, {
       "Optional on-call accelerated response",
     ],
   },
-};
+] as const;
 
-const FALLBACK_PLANS = [
-  { name: "Foundation", price: "$149", popular: false, key: "starter" },
-  { name: "Proactive", price: "$349", popular: true, key: "professional" },
-  { name: "Compliance", price: "$749", popular: false, key: "business" },
-  { name: "Enterprise", price: "Custom", popular: false, key: "enterprise" },
+// ── Payment Providers ─────────────────────────────────────────────────────────
+
+const PROVIDERS = [
+  {
+    id: "zoho",
+    name: "Zoho Subscriptions",
+    tagline: "Subscription management for growing businesses",
+    color: "text-red-400",
+    bg: "bg-red-500/10",
+    border: "border-red-500/20",
+    accent: "#ef4444",
+    description: "Zoho Subscriptions is an end-to-end subscription billing platform with built-in dunning management, multi-currency support, and deep Zoho ecosystem integration.",
+    features: ["Dunning management", "Multi-currency billing", "Zoho CRM integration", "Revenue recognition reports", "Hosted payment pages"],
+    setupUrl: "https://www.zoho.com/subscriptions/",
+    configKeys: ["ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET", "ZOHO_ORG_ID"],
+  },
+  {
+    id: "billsby",
+    name: "Billsby",
+    tagline: "Flexible recurring billing & subscription management",
+    color: "text-blue-400",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/20",
+    accent: "#3b82f6",
+    description: "Billsby provides powerful subscription management with a focus on flexibility — supporting complex plan configurations, add-ons, and metered billing out of the box.",
+    features: ["Complex plan structures", "Add-ons & allowances", "Metered billing", "Self-service customer portal", "Retention tools"],
+    setupUrl: "https://www.billsby.com/",
+    configKeys: ["BILLSBY_API_KEY", "BILLSBY_COMPANY_DOMAIN"],
+  },
+  {
+    id: "chargebee",
+    name: "Chargebee",
+    tagline: "Enterprise-grade subscription & revenue management",
+    color: "text-orange-400",
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/20",
+    accent: "#f97316",
+    description: "Chargebee is a subscription management and recurring billing platform used by thousands of SaaS businesses, with powerful revenue automation and compliance tools.",
+    features: ["Revenue recognition (ASC 606)", "Offline payment support", "CPQ & quote-to-cash", "Tax automation (Avalara)", "Multi-entity billing"],
+    setupUrl: "https://www.chargebee.com/",
+    configKeys: ["CHARGEBEE_API_KEY", "CHARGEBEE_SITE"],
+  },
+  {
+    id: "fastspring",
+    name: "FastSpring",
+    tagline: "Global SaaS payments & subscription commerce",
+    color: "text-green-400",
+    bg: "bg-green-500/10",
+    border: "border-green-500/20",
+    accent: "#22c55e",
+    description: "FastSpring is a full-service commerce platform specialising in global software and SaaS sales — handling VAT, GST, and other digital taxes automatically across 200+ countries.",
+    features: ["Global tax compliance (VAT/GST)", "200+ currencies", "Localized checkout", "Subscription lifecycle management", "Partner & affiliate management"],
+    setupUrl: "https://fastspring.com/",
+    configKeys: ["FASTSPRING_API_KEY", "FASTSPRING_STOREFRONT"],
+  },
+  {
+    id: "square",
+    name: "Square",
+    tagline: "Payments, subscriptions & point of sale",
+    color: "text-slate-300",
+    bg: "bg-white/5",
+    border: "border-white/10",
+    accent: "#94a3b8",
+    description: "Square offers a unified commerce platform covering in-person payments, online checkout, and subscription billing — ideal if you need both physical and digital payment support.",
+    features: ["In-person & online payments", "Recurring billing", "Invoicing & estimates", "Square POS integration", "Team management tools"],
+    setupUrl: "https://squareup.com/",
+    configKeys: ["SQUARE_ACCESS_TOKEN", "SQUARE_APPLICATION_ID", "SQUARE_LOCATION_ID"],
+  },
 ];
 
+// ── Plan Selection Modal ───────────────────────────────────────────────────────
+
+function PlanModal({ plan, onClose }: { plan: typeof PLANS[number]; onClose: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}>
+      <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
+        className="bg-[#0d1117] border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl ${plan.bg} border ${plan.border} flex items-center justify-center`}>
+              <plan.icon className={`w-5 h-5 ${plan.color}`} />
+            </div>
+            <div>
+              <h3 className="font-bold text-white">{plan.name}</h3>
+              <p className="text-xs text-slate-500">{plan.price}{plan.price !== "Custom" ? "/mo" : ""}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <p className="text-sm text-slate-400 mb-5">
+          To activate the <span className="text-white font-semibold">{plan.name}</span> plan, connect one of the payment providers below and configure your subscription products.
+        </p>
+        <div className="space-y-2 mb-5">
+          {PROVIDERS.map(p => (
+            <div key={p.id} className={`flex items-center justify-between p-3 rounded-xl border ${p.border} ${p.bg}`}>
+              <span className={`text-sm font-medium ${p.color}`}>{p.name}</span>
+              <Badge variant="warning" className="text-[10px]">Setup Required</Badge>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-600">Scroll down to the Payment Providers section to configure your preferred provider.</p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Provider Detail Modal ─────────────────────────────────────────────────────
+
+function ProviderModal({ provider, onClose }: { provider: typeof PROVIDERS[number]; onClose: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}>
+      <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
+        className="bg-[#0d1117] border border-white/[0.08] rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${provider.bg} border ${provider.border}`}>
+            <CreditCard className={`w-4 h-4 ${provider.color}`} />
+            <span className={`font-bold text-sm ${provider.color}`}>{provider.name}</span>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-xs text-slate-500 mt-2 mb-4">{provider.tagline}</p>
+        <p className="text-sm text-slate-400 mb-5 leading-relaxed">{provider.description}</p>
+
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Key Features</p>
+          <ul className="space-y-1.5">
+            {provider.features.map(f => (
+              <li key={f} className="flex items-center gap-2 text-xs text-slate-400">
+                <Check className={`w-3.5 h-3.5 shrink-0 ${provider.color}`} />
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mb-5 p-4 bg-white/[0.02] rounded-xl border border-white/[0.06]">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Required Secrets</p>
+          <p className="text-xs text-slate-500 mb-3">Add these to your Replit Secrets panel, then restart the server:</p>
+          <div className="space-y-1.5">
+            {provider.configKeys.map(k => (
+              <div key={k} className="flex items-center gap-2 font-mono text-xs text-slate-300 bg-black/40 px-3 py-1.5 rounded-lg border border-white/[0.06]">
+                <span className="text-slate-600">$</span>
+                {k}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <a href={provider.setupUrl} target="_blank" rel="noopener noreferrer"
+          className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border ${provider.border} ${provider.color} text-sm font-semibold hover:opacity-80 transition-opacity`}>
+          Open {provider.name} Dashboard
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Main Billing Page ─────────────────────────────────────────────────────────
+
 export default function Billing() {
-  const { data: productsRes, isLoading: productsLoading } = useListStripeProducts();
-  const { data: subRes, isLoading: subLoading } = useGetSubscription();
-  const { mutate: checkout, isPending: isCheckingOut } = useCreateCheckoutSession();
-  const { mutate: portal, isPending: isPortalLoading } = useCreatePortalSession();
-
-  if (productsLoading || subLoading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="w-10 h-10 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(0,240,255,0.3)]" />
-      </div>
-    );
-  }
-
-  const currentTier = subRes?.tier || "free";
-  const products = productsRes?.data || [];
-
-  const handleSubscribe = (priceId: string) => {
-    checkout({ data: { priceId } }, {
-      onSuccess: (res) => { window.location.href = res.url; }
-    });
-  };
-
-  const handleManage = () => {
-    portal(undefined, {
-      onSuccess: (res) => { window.location.href = res.url; }
-    });
-  };
-
-  const TIER_ORDER = ["starter", "professional", "business", "enterprise"];
-
-  const plansToRender = (() => {
-    if (products.length === 0) {
-      return FALLBACK_PLANS.map(fp => {
-        const meta = PLAN_META[fp.key] || PLAN_META.starter;
-        return { id: fp.key, name: fp.name, price: null, description: null, meta, key: fp.key, fallbackPrice: fp.price, popular: fp.popular };
-      });
-    }
-
-    const byKey = new Map<string, typeof products[number]>();
-    for (const p of products) {
-      const key = p.name.toLowerCase().replace(/\s+/g, "");
-      if (!PLAN_META[key]) continue;
-      const existing = byKey.get(key);
-      const existingAmount = existing?.prices[0]?.unitAmount ?? 0;
-      const thisAmount = p.prices[0]?.unitAmount ?? 0;
-      if (!existing || thisAmount > existingAmount) byKey.set(key, p);
-    }
-
-    return TIER_ORDER
-      .filter(k => byKey.has(k))
-      .map(k => {
-        const p = byKey.get(k)!;
-        const meta = PLAN_META[k];
-        const price = p.prices[0];
-        return { id: p.id, name: p.name, price, description: p.description, meta, key: k };
-      });
-  })();
+  const [selectedPlan, setSelectedPlan] = useState<typeof PLANS[number] | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<typeof PROVIDERS[number] | null>(null);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10">
+    <div className="max-w-6xl mx-auto space-y-12">
+      {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-3xl mx-auto">
-        <h1 className="text-4xl font-display font-bold text-white text-glow">Simple, Transparent Pricing</h1>
+        <h1 className="text-4xl font-display font-bold text-white">Simple, Transparent Pricing</h1>
         <p className="text-slate-400 mt-3 text-lg">Scale your autonomous operations engine as your infrastructure grows.</p>
-
         <div className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
           <Gift className="w-4 h-4 text-emerald-400" />
           <span className="text-sm font-medium text-emerald-400">7-Day Free Trial on all paid plans — No credit card required</span>
         </div>
-
-        {subRes?.subscription && (
-          <div className="mt-5 inline-flex items-center gap-3 p-2 pr-4 bg-cyan-500/10 border border-cyan-500/20 rounded-full ml-4">
-            <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">
-              <Check className="w-4 h-4" />
-            </div>
-            <span className="text-sm font-medium text-cyan-400">Active Plan: <span className="font-bold capitalize">{currentTier}</span></span>
-            <Button size="sm" variant="outline" className="ml-4 h-8 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10" onClick={handleManage} isLoading={isPortalLoading}>
-              Manage Billing
-            </Button>
-          </div>
-        )}
       </motion.div>
 
+      {/* Pricing Tiers */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {plansToRender.map((plan, i) => {
-          const isCurrent = plan.name.toLowerCase().includes(currentTier.toLowerCase());
-          const isPopular = plan.name.toLowerCase().includes("professional");
-          const meta = plan.meta;
-          const MetaIcon = meta.icon;
+        {PLANS.map((plan, i) => (
+          <motion.div key={plan.key} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08 }} className="flex">
+            <Card className={`p-6 relative flex flex-col w-full ${plan.popular ? "border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.12)]" : ""}`}>
+              {"popular" in plan && plan.popular && (
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-violet-500 to-indigo-600 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-1 shadow-sm whitespace-nowrap">
+                  <Sparkles className="w-3 h-3" /> Most Popular
+                </div>
+              )}
 
-          return (
-            <motion.div
-              key={plan.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-              className="flex"
-            >
-              <Card className={`p-6 relative flex flex-col w-full ${isPopular ? `border-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.12)]` : ""}`}>
-                {isPopular && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-violet-500 to-indigo-600 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-1 shadow-sm">
-                    <Sparkles className="w-3 h-3" /> Most Popular
-                  </div>
+              <div className="mb-5">
+                <div className={`w-10 h-10 rounded-2xl ${plan.bg} border ${plan.border} flex items-center justify-center mb-4`}>
+                  <plan.icon className={`w-5 h-5 ${plan.color}`} />
+                </div>
+                <h3 className="text-xl font-display font-bold text-white">{plan.name}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{plan.tagline}</p>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-end gap-1">
+                  <span className="text-4xl font-display font-bold text-white">{plan.price}</span>
+                  {plan.price !== "Custom" && <span className="text-slate-500 font-medium mb-1">/mo</span>}
+                </div>
+                {"mspEquiv" in plan && plan.mspEquiv && (
+                  <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase mt-1">{plan.mspEquiv}</p>
                 )}
+              </div>
 
-                <div className="mb-5">
-                  <div className={`w-10 h-10 rounded-2xl ${meta.bg} border ${meta.border} flex items-center justify-center mb-4`}>
-                    <MetaIcon className={`w-5 h-5 ${meta.color}`} />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-white">{plan.name}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{meta.tagline}</p>
-                </div>
+              <ul className="space-y-2 flex-1 mb-6">
+                {plan.features.map((f, j) => (
+                  <li key={j} className="flex items-start gap-2.5 text-xs text-slate-400">
+                    <Check className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${plan.color}`} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
 
-                <div className="mb-6">
-                  {"fallbackPrice" in plan && plan.fallbackPrice ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-end gap-1">
-                        <span className="text-4xl font-display font-bold text-white">{plan.fallbackPrice}</span>
-                        {plan.fallbackPrice !== "Custom" && <span className="text-slate-500 font-medium mb-1">/mo</span>}
-                      </div>
-                      {meta.mspEquiv && (
-                        <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase">{meta.mspEquiv}</p>
-                      )}
-                    </div>
-                  ) : plan.price ? (
-                    <div className="space-y-1.5">
-                      <div className="flex items-end gap-1">
-                        <span className="text-4xl font-display font-bold text-white">
-                          {plan.price.unitAmount != null ? `$${Math.round(plan.price.unitAmount / 100)}` : "Custom"}
-                        </span>
-                        {plan.price.unitAmount != null && <span className="text-slate-500 font-medium mb-1">/mo</span>}
-                      </div>
-                      {meta.mspEquiv && (
-                        <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase">{meta.mspEquiv}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-4xl font-display font-bold text-white">—</span>
-                  )}
-                </div>
-
-                <ul className="space-y-2 flex-1 mb-6">
-                  {meta.features.map((feature, j) => (
-                    <li key={j} className="flex items-start gap-2.5 text-xs text-slate-400">
-                      <Check className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${meta.color}`} />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto">
-                  {isCurrent ? (
-                    <Button className="w-full bg-white/5 text-slate-500 cursor-default hover:bg-white/5 border-white/[0.06] shadow-none" disabled>
-                      Current Plan
-                    </Button>
-                  ) : plan.name.toLowerCase() === "enterprise" ? (
-                    <Button className="w-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10" variant="outline">
-                      Contact Sales
-                    </Button>
-                  ) : plan.price ? (
-                    <Button
-                      className={`w-full ${isPopular ? "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.25)]" : ""}`}
-                      variant={isPopular ? "primary" : "secondary"}
-                      onClick={() => handleSubscribe(plan.price!.id)}
-                      isLoading={isCheckingOut}
-                    >
-                      Start Free Trial
-                    </Button>
-                  ) : (
-                    <Button className="w-full" variant="secondary">
-                      Start Free Trial
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            </motion.div>
-          );
-        })}
+              <button
+                onClick={() => setSelectedPlan(plan)}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all mt-auto ${
+                  plan.key === "enterprise"
+                    ? `border ${plan.border} ${plan.color} hover:${plan.bg}`
+                    : plan.popular
+                    ? "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                    : "bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08]"
+                }`}>
+                {plan.key === "enterprise" ? "Contact Sales" : "Choose Plan"}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-        <Card className="p-6 border-white/[0.05]">
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-cyan-400" />
-            Platform Service Rules
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-slate-500">
-            {[
-              { icon: Brain, title: "Apphia-First Support", desc: "Apphia handles the vast majority of issues autonomously — human escalation is the exception, not the rule." },
-              { icon: Zap, title: "Email Support Included", desc: "All plans include email support with 1–24 hr response depending on complexity and tier." },
-              { icon: Shield, title: "Predictive Monitoring", desc: "Continuous monitoring reduces incidents before they require escalation, saving time and cost." },
-            ].map((item, i) => (
-              <div key={i} className="flex gap-3 items-start p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                <item.icon className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="font-medium text-slate-300 text-xs mb-0.5">{item.title}</p>
-                  <p className="text-xs leading-relaxed">{item.desc}</p>
+      {/* Payment Providers */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+        <div className="flex items-center gap-3 mb-5">
+          <CreditCard className="w-5 h-5 text-slate-400" />
+          <h2 className="text-xl font-bold text-white">Payment Providers</h2>
+          <Badge variant="warning" className="text-xs">Setup Required</Badge>
+        </div>
+        <p className="text-sm text-slate-500 mb-6 max-w-2xl">
+          Connect one of the providers below to activate subscription checkout. Click any provider to see setup instructions and the required credentials.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PROVIDERS.map((provider, i) => (
+            <motion.button
+              key={provider.id}
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 + i * 0.07 }}
+              onClick={() => setSelectedProvider(provider)}
+              className={`text-left p-5 rounded-2xl border ${provider.border} ${provider.bg} hover:brightness-125 transition-all group`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className={`flex items-center gap-2 font-bold text-sm ${provider.color}`}>
+                  <CreditCard className="w-4 h-4" />
+                  {provider.name}
                 </div>
+                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition-colors" />
               </div>
-            ))}
-          </div>
-        </Card>
+              <p className="text-xs text-slate-500 leading-relaxed">{provider.tagline}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {provider.features.slice(0, 2).map(f => (
+                  <span key={f} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/[0.04] border border-white/[0.06] text-slate-500">
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </motion.button>
+          ))}
+        </div>
       </motion.div>
 
-      <div className="text-center">
+      {/* Footer note */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+        className="text-center">
         <div className="inline-flex items-center gap-3 p-4 bg-white/[0.03] rounded-2xl text-slate-500 border border-white/[0.06]">
-          <CreditCard className="w-5 h-5 text-slate-600" />
-          <span className="font-medium text-sm">Secure payments powered by Stripe · Cancel anytime · No long-term contracts</span>
+          <Shield className="w-5 h-5 text-slate-600" />
+          <span className="text-sm font-medium">Payment provider integration in progress · Cancel anytime · No long-term contracts</span>
         </div>
-      </div>
+      </motion.div>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {selectedPlan && <PlanModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
+        {selectedProvider && <ProviderModal provider={selectedProvider} onClose={() => setSelectedProvider(null)} />}
+      </AnimatePresence>
     </div>
   );
 }
