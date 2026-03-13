@@ -94,10 +94,11 @@ async function kbSemanticSearch(query: string, domain?: string, limit = 5): Prom
     }
     const result = await pool.query(
       `SELECT id, external_id, title, domain, subdomain, resolution_steps, symptoms, self_healable,
-        round((1 - (embedding <=> $1::vector))::numeric, 4) AS similarity
+        round((1 - (embedding <=> $1::vector))::numeric, 4) AS similarity,
+        confidence_score
       FROM knowledge_nodes
       WHERE embedding IS NOT NULL ${domainClause}
-      ORDER BY embedding <=> $1::vector
+      ORDER BY (embedding <=> $1::vector) - (confidence_score * 0.3)
       LIMIT $2`,
       params
     );
@@ -191,11 +192,17 @@ router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const updateData: Partial<Case> = { ...parsed.data };
   if (parsed.data.status === "resolved") updateData.resolvedAt = new Date();
+
+  const [existing] = await db.select({ status: casesTable.status })
+    .from(casesTable).where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id)));
+  if (!existing) { res.status(404).json({ error: "Case not found" }); return; }
+  const wasResolved = existing.status === "resolved";
+
   const [updated] = await db.update(casesTable).set(updateData)
     .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id))).returning();
   if (!updated) { res.status(404).json({ error: "Case not found" }); return; }
 
-  if (parsed.data.status === "resolved") {
+  if (parsed.data.status === "resolved" && !wasResolved) {
     try {
       const [latestAttempt] = await db.select({ udoGraph: diagnosticAttemptsTable.udoGraph })
         .from(diagnosticAttemptsTable)
