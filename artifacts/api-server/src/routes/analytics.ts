@@ -9,14 +9,14 @@ import { requireFeature } from "../middleware/tierGating";
 
 const router: IRouter = Router();
 
-const ANALYTICS_FEATURE = "advanced_diagnostics";
+const ANALYTICS = "analytics";
 
 function parseDays(daysStr?: string): { days: number; since: Date } {
   const days = Math.min(Math.max(parseInt(daysStr || "30", 10) || 30, 1), 365);
   return { days, since: new Date(Date.now() - days * 24 * 60 * 60 * 1000) };
 }
 
-router.get("/analytics/case-volume", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/case-volume", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -39,7 +39,7 @@ router.get("/analytics/case-volume", requireFeature(ANALYTICS_FEATURE), async (r
   res.json({ period: { days, since: since.toISOString() }, data: result.rows });
 });
 
-router.get("/analytics/resolution-times", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/resolution-times", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -62,24 +62,7 @@ router.get("/analytics/resolution-times", requireFeature(ANALYTICS_FEATURE), asy
   res.json({ period: { days, since: since.toISOString() }, data: result.rows });
 });
 
-router.get("/analytics/error-categories", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
-  const authReq = req as unknown as AuthenticatedRequest;
-  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
-
-  const patterns = await db.select({
-    domain: errorPatternsTable.domain,
-    totalOccurrences: sql<number>`sum(occurrence_count)`,
-    patternCount: sql<number>`count(*)`,
-    avgConfidence: sql<number>`round(avg(avg_confidence)::numeric, 1)`,
-  }).from(errorPatternsTable)
-    .groupBy(errorPatternsTable.domain)
-    .orderBy(desc(sql`sum(occurrence_count)`))
-    .limit(10);
-
-  res.json({ data: patterns });
-});
-
-router.get("/analytics/sla-compliance", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/sla-compliance", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -105,28 +88,29 @@ router.get("/analytics/sla-compliance", requireFeature(ANALYTICS_FEATURE), async
 
   res.json({
     period: { days, since: since.toISOString() },
-    total,
-    compliant,
-    breached: Number(row.breached),
-    resolved: Number(row.resolved),
-    openCases: Number(row.open_cases),
-    inProgress: Number(row.in_progress),
-    complianceRate,
+    total, compliant, breached: Number(row.breached), resolved: Number(row.resolved),
+    openCases: Number(row.open_cases), inProgress: Number(row.in_progress), complianceRate,
   });
 });
 
-router.get("/analytics/connector-health", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/connector-health", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const { days, since } = parseDays(req.query.days as string);
+  const limitPerConnector = Math.min(parseInt((req.query.limit as string) || "50", 10), 200);
 
   const result = await pool.query(
     `SELECT connector_name, status, latency_ms, checked_at
-    FROM connector_health_history
-    WHERE user_id = $1 AND checked_at >= $2
+    FROM (
+      SELECT connector_name, status, latency_ms, checked_at,
+        ROW_NUMBER() OVER (PARTITION BY connector_name ORDER BY checked_at DESC) as rn
+      FROM connector_health_history
+      WHERE user_id = $1 AND checked_at >= $2
+    ) ranked
+    WHERE rn <= $3
     ORDER BY connector_name ASC, checked_at ASC`,
-    [authReq.user.id, since.toISOString()]
+    [authReq.user.id, since.toISOString(), limitPerConnector]
   );
 
   const grouped: Record<string, Array<{ status: string; latencyMs: number | null; checkedAt: string }>> = {};
@@ -140,10 +124,10 @@ router.get("/analytics/connector-health", requireFeature(ANALYTICS_FEATURE), asy
     });
   }
 
-  res.json({ period: { days, since: since.toISOString() }, connectors: grouped });
+  res.json({ period: { days, since: since.toISOString() }, limitPerConnector, connectors: grouped });
 });
 
-router.get("/analytics/case-metrics", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/case-metrics", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -221,7 +205,7 @@ router.get("/analytics/case-metrics", requireFeature(ANALYTICS_FEATURE), async (
   });
 });
 
-router.get("/analytics/error-trends", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/error-trends", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -254,7 +238,7 @@ router.get("/analytics/error-trends", requireFeature(ANALYTICS_FEATURE), async (
   });
 });
 
-router.get("/analytics/pipeline-performance", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+router.get("/analytics/pipeline-performance", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 

@@ -15,6 +15,10 @@ import vaultRouter from "./vault";
 import environmentRouter from "./environment";
 import analyticsRouter from "./analytics";
 import remoteRouter from "./remote";
+import hostingRouter from "./hosting";
+import screenshareRouter from "./screenshare";
+import companyVaultRouter from "./companyVault";
+import recommendRouter from "./recommend";
 
 const router: IRouter = Router();
 
@@ -34,5 +38,9 @@ router.use(vaultRouter);
 router.use(environmentRouter);
 router.use(analyticsRouter);
 router.use(remoteRouter);
+router.use(hostingRouter);
+router.use(screenshareRouter);
+router.use(companyVaultRouter);
+router.use(recommendRouter);
 
 export default router;

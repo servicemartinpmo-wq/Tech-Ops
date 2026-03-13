@@ -189,7 +189,9 @@ router.post("/connectors/health/:name/poll", async (req, res: Response): Promise
       latencyMs: healthResult.responseTime,
       errorMessage: healthResult.message || null,
     });
-  } catch { /* non-critical */ }
+  } catch (histErr) {
+    console.warn("[connector-history] Failed to record poll history:", histErr);
+  }
 
   res.json(result);
 });

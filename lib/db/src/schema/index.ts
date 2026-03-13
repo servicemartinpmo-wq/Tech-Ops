@@ -6,3 +6,4 @@ export * from "./batches";
 export * from "./vault";
 export * from "./knowledge";
 export * from "./ops";
+export * from "./hosting";

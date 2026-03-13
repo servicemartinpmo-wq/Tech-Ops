@@ -26,7 +26,7 @@ const TIER_LIMITS: Record<string, {
     maxBatchConcurrency: 5,
     maxConcurrentTickets: 5,
     features: [
-      "advanced_diagnostics", "multi_connector", "preferences_quiz",
+      "advanced_diagnostics", "analytics", "multi_connector", "preferences_quiz",
       "batch_execution", "automation_center", "cybersecurity_monitoring",
       "cloud_management", "vault", "kb_lookup",
     ],
@@ -36,7 +36,8 @@ const TIER_LIMITS: Record<string, {
     maxBatchConcurrency: 20,
     maxConcurrentTickets: 20,
     features: [
-      "full_diagnostics", "automation_center", "connector_monitoring",
+      "full_diagnostics", "advanced_diagnostics", "analytics",
+      "automation_center", "connector_monitoring",
       "batch_execution", "priority_support", "hipaa_compliance",
       "audit_trail", "sla_monitoring", "vault", "kb_lookup",
       "cybersecurity_monitoring", "cloud_management",

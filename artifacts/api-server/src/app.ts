@@ -4,8 +4,19 @@ import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 import { WebhookHandlers } from "./webhookHandlers";
+import {
+  securityHeaders,
+  rateLimiter,
+  sanitizeBody,
+  requestSizeGuard,
+  globalErrorHandler,
+} from "./middleware/security";
 
 const app: Express = express();
+
+app.set("trust proxy", 1);
+
+app.use(securityHeaders);
 
 app.post(
   '/api/stripe/webhook',
@@ -39,10 +50,15 @@ app.post(
 
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(requestSizeGuard);
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(sanitizeBody);
 app.use(authMiddleware);
+app.use(rateLimiter);
 
 app.use("/api", router);
+
+app.use(globalErrorHandler);
 
 export default app;
