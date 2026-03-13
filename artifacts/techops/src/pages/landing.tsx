@@ -509,7 +509,7 @@ export default function Landing() {
   const { isAuthenticated, isLoading } = useAuth();
 
   const handleLogin = () => {
-    window.location.href = "/api/login";
+    window.location.href = "/api/login?returnTo=/dashboard";
   };
 
   if (isLoading) {

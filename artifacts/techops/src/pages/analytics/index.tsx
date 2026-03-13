@@ -1,11 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui";
 import { useApiBase } from "@/hooks/use-api-base";
 import {
   BarChart3, TrendingUp, TrendingDown, Clock, CheckCircle2, AlertTriangle,
-  Zap, Target, Activity, ChevronDown, RefreshCw, Calendar,
+  Zap, Target, Activity, RefreshCw, ShieldCheck, Wifi,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, AreaChart, Area,
+} from "recharts";
 
 interface KPI {
   cases30d: number; cases7d: number;
@@ -30,11 +34,52 @@ interface PipelinePerf {
 
 interface ErrorTrends {
   topPatterns: Array<{ id: number; domain: string; title: string; occurrenceCount: number; avgConfidence: number; lastSeen: string }>;
-  domainTrends: Array<{ domain: string; totalOccurrences: string; patternCount: string }>;
+  domainTrends: Array<{ domain: string; totalOccurrences: string; patternCount: string; avgConfidence?: string }>;
   escalationBreakdown: Record<string, number>;
 }
 
+interface CaseVolume {
+  data: Array<{ day: string; total: string; critical: string; high: string; medium: string; low: string }>;
+}
+
+interface ResolutionTimes {
+  data: Array<{ priority: string; avg_hours: string; min_hours: string; max_hours: string; count: string }>;
+}
+
+interface SlaCompliance {
+  total: number; compliant: number; breached: number; resolved: number;
+  openCases: number; inProgress: number; complianceRate: number;
+}
+
+interface ConnectorHealth {
+  connectors: Record<string, Array<{ status: string; latencyMs: number | null; checkedAt: string }>>;
+}
+
 type Period = "7" | "30" | "90";
+type Tab = "overview" | "cases" | "pipeline" | "errors" | "connectors";
+
+const COLORS = {
+  violet: "#7c3aed", sky: "#0ea5e9", emerald: "#10b981", amber: "#f59e0b",
+  rose: "#f43f5e", slate: "#94a3b8", indigo: "#6366f1", teal: "#14b8a6",
+};
+
+const PIE_COLORS = [COLORS.emerald, COLORS.sky, COLORS.amber, COLORS.rose, COLORS.slate, COLORS.violet];
+
+const STATUS_COLORS: Record<string, string> = {
+  resolved: COLORS.emerald, open: COLORS.sky, in_progress: COLORS.amber,
+  escalated: COLORS.rose, closed: COLORS.slate,
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  critical: COLORS.rose, high: "#f97316", medium: COLORS.amber, low: COLORS.slate,
+};
+
+const STAGE_NAMES: Record<number, string> = {
+  1: "Classification", 2: "Quick-Fix", 3: "KB Retrieval",
+  4: "UDO Traversal", 5: "Root Cause", 6: "Hypothesis",
+  7: "Guardrails", 8: "Cost Gate", 9: "Action Plan",
+  10: "Resolution", 11: "Self-Assess", 12: "Translation",
+};
 
 function StatCard({ label, value, sub, icon: Icon, color, trend }: {
   label: string; value: string | number; sub?: string;
@@ -49,7 +94,7 @@ function StatCard({ label, value, sub, icon: Icon, color, trend }: {
             <p className={`text-3xl font-bold ${color} tabular-nums`}>{value}</p>
             {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
           </div>
-          <div className={`p-2.5 rounded-xl ${color.replace("text-", "bg-").replace("-600", "-100").replace("-400", "-50")}`}>
+          <div className={`p-2.5 rounded-xl bg-slate-100`}>
             <Icon className={`w-5 h-5 ${color}`} />
           </div>
         </div>
@@ -66,50 +111,57 @@ function StatCard({ label, value, sub, icon: Icon, color, trend }: {
   );
 }
 
-function SimpleBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="mb-2">
-      <div className="flex justify-between text-xs text-slate-600 mb-1">
-        <span className="capitalize">{label}</span>
-        <span className="font-semibold tabular-nums">{value}</span>
-      </div>
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <motion.div className={`h-full ${color} rounded-full`} initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6 }} />
-      </div>
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs">
+      <p className="font-semibold text-slate-700 mb-1">{label}</p>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-500">{p.name}:</span>
+          <span className="font-semibold text-slate-700">{p.value}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-const STAGE_NAMES: Record<number, string> = {
-  1: "Classification", 2: "Quick-Fix Gate", 3: "KB Retrieval",
-  4: "UDO Traversal", 5: "Root Cause", 6: "Hypothesis Validation",
-  7: "Guardrails", 8: "Cost Gate", 9: "Action Planning",
-  10: "Resolution", 11: "Self-Assessment", 12: "Translation",
-};
-
 export default function Analytics() {
   const apiBase = useApiBase();
   const [period, setPeriod] = useState<Period>("30");
+  const [tab, setTab] = useState<Tab>("overview");
   const [kpi, setKpi] = useState<KPI | null>(null);
   const [metrics, setMetrics] = useState<CaseMetrics | null>(null);
   const [pipeline, setPipeline] = useState<PipelinePerf | null>(null);
   const [trends, setTrends] = useState<ErrorTrends | null>(null);
+  const [caseVolume, setCaseVolume] = useState<CaseVolume | null>(null);
+  const [resTimes, setResTimes] = useState<ResolutionTimes | null>(null);
+  const [sla, setSla] = useState<SlaCompliance | null>(null);
+  const [connHealth, setConnHealth] = useState<ConnectorHealth | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function fetchAll() {
     setLoading(true);
     try {
-      const [kpiRes, metricsRes, pipelineRes, trendsRes] = await Promise.all([
-        fetch(`${apiBase}/api/analytics/kpi`, { credentials: "include" }),
-        fetch(`${apiBase}/api/analytics/case-metrics?days=${period}`, { credentials: "include" }),
-        fetch(`${apiBase}/api/analytics/pipeline-performance?days=${period}`, { credentials: "include" }),
-        fetch(`${apiBase}/api/analytics/error-trends`, { credentials: "include" }),
+      const opts = { credentials: "include" as const };
+      const [kR, mR, pR, tR, cvR, rtR, slaR, chR] = await Promise.all([
+        fetch(`${apiBase}/api/analytics/kpi`, opts),
+        fetch(`${apiBase}/api/analytics/case-metrics?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/pipeline-performance?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/error-trends`, opts),
+        fetch(`${apiBase}/api/analytics/case-volume?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/resolution-times?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/sla-compliance?days=${period}`, opts),
+        fetch(`${apiBase}/api/analytics/connector-health?days=${period}`, opts),
       ]);
-      const [kpiData, metricsData, pipelineData, trendsData] = await Promise.all([
-        kpiRes.json(), metricsRes.json(), pipelineRes.json(), trendsRes.json(),
-      ]);
-      setKpi(kpiData); setMetrics(metricsData); setPipeline(pipelineData); setTrends(trendsData);
+      const results = await Promise.all([kR, mR, pR, tR, cvR, rtR, slaR, chR].map(async r => {
+        if (!r.ok) return null;
+        return r.json();
+      }));
+      setKpi(results[0]); setMetrics(results[1]); setPipeline(results[2]);
+      setTrends(results[3]); setCaseVolume(results[4]); setResTimes(results[5]);
+      setSla(results[6]); setConnHealth(results[7]);
     } catch { /* ignore */ } finally {
       setLoading(false);
     }
@@ -117,20 +169,82 @@ export default function Analytics() {
 
   useEffect(() => { fetchAll(); }, [period]);
 
-  const maxStatusCount = Math.max(...Object.values(metrics?.byStatus || {}).map(Number), 1);
-  const maxPriorityCount = Math.max(...Object.values(metrics?.byPriority || {}).map(Number), 1);
-  const maxPatternCount = Math.max(...(trends?.topPatterns || []).map(p => p.occurrenceCount), 1);
-  const maxStageDuration = Math.max(...(pipeline?.stageBreakdown || []).map(s => Number(s.avgDurationMs)), 1);
+  const volumeData = useMemo(() =>
+    (caseVolume?.data || []).map(d => ({
+      day: new Date(d.day).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      total: Number(d.total), critical: Number(d.critical),
+      high: Number(d.high), medium: Number(d.medium), low: Number(d.low),
+    })), [caseVolume]);
+
+  const statusPieData = useMemo(() =>
+    Object.entries(metrics?.byStatus || {}).map(([name, value]) => ({
+      name: name.replace(/_/g, " "), value: Number(value),
+      color: STATUS_COLORS[name] || COLORS.slate,
+    })), [metrics]);
+
+  const priorityPieData = useMemo(() =>
+    Object.entries(metrics?.byPriority || {}).map(([name, value]) => ({
+      name, value: Number(value),
+      color: PRIORITY_COLORS[name] || COLORS.slate,
+    })), [metrics]);
+
+  const stageData = useMemo(() =>
+    (pipeline?.stageBreakdown || []).map(s => ({
+      name: STAGE_NAMES[s.stage] || `S${s.stage}`,
+      duration: Number(s.avgDurationMs),
+      tokens: Number(s.avgTokens),
+      runs: Number(s.count),
+    })), [pipeline]);
+
+  const domainData = useMemo(() =>
+    (trends?.domainTrends || []).map((d) => ({
+      domain: String(d.domain),
+      occurrences: Number(d.totalOccurrences),
+      patterns: Number(d.patternCount),
+      confidence: Number(d.avgConfidence || 0),
+    })), [trends]);
+
+  const resTimeData = useMemo(() =>
+    (resTimes?.data || []).map(d => ({
+      priority: d.priority,
+      avg: Number(d.avg_hours),
+      min: Number(d.min_hours),
+      max: Number(d.max_hours),
+      count: Number(d.count),
+    })), [resTimes]);
+
+  const connectorData = useMemo(() => {
+    const c = connHealth?.connectors || {};
+    return Object.entries(c).map(([name, checks]) => ({
+      name,
+      uptime: checks.length > 0
+        ? Math.round((checks.filter(ch => ch.status === "healthy").length / checks.length) * 100)
+        : 0,
+      avgLatency: checks.length > 0
+        ? Math.round(checks.reduce((sum, ch) => sum + (ch.latencyMs || 0), 0) / checks.length)
+        : 0,
+      checks: checks.length,
+      lastStatus: checks[checks.length - 1]?.status || "unknown",
+    }));
+  }, [connHealth]);
+
+  const tabs: Array<{ id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "cases", label: "Cases", icon: Activity },
+    { id: "pipeline", label: "Pipeline", icon: Zap },
+    { id: "errors", label: "Errors", icon: AlertTriangle },
+    { id: "connectors", label: "Connectors", icon: Wifi },
+  ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <BarChart3 className="w-7 h-7 text-violet-600" />
             Analytics & Performance
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Diagnostic performance, case metrics, and error trend intelligence</p>
+          <p className="text-slate-500 text-sm mt-1">Diagnostic performance, case metrics, and operational intelligence</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex border border-slate-200 rounded-lg overflow-hidden text-xs font-medium">
@@ -147,6 +261,20 @@ export default function Analytics() {
         </div>
       </div>
 
+      <div className="flex gap-1 border-b border-slate-200">
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? "border-violet-600 text-violet-700"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}>
+            <t.icon className="w-3.5 h-3.5" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {loading && (
         <div className="flex items-center justify-center h-40">
           <div className="flex gap-1">
@@ -158,197 +286,405 @@ export default function Analytics() {
         </div>
       )}
 
-      {!loading && kpi && (
+      {!loading && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Cases (30d)" value={kpi.cases30d} sub={`${kpi.cases7d} this week`} icon={Briefcase2} color="text-slate-700" />
-            <StatCard label="Resolution Rate" value={`${kpi.resolutionRate30d}%`} sub={`${kpi.resolutionRate7d}% this week`}
-              icon={CheckCircle2} color="text-emerald-600" trend={kpi.resolutionRate30d >= 70 ? "up" : "down"} />
-            <StatCard label="Avg Confidence" value={`${kpi.avgConfidence30d}%`} sub="30-day average"
-              icon={Target} color="text-violet-600" trend={kpi.avgConfidence30d >= 75 ? "up" : "neutral"} />
-            <StatCard label="SLA Breaches" value={kpi.slaBreaches30d} sub="Last 30 days"
-              icon={AlertTriangle} color={kpi.slaBreaches30d > 0 ? "text-rose-600" : "text-slate-400"}
-              trend={kpi.slaBreaches30d > 0 ? "down" : "neutral"} />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-slate-400" /> Cases by Status
-              </h3>
-              {Object.entries(metrics?.byStatus || {}).map(([status, count]) => (
-                <SimpleBar key={status} label={status.replace(/_/g, " ")} value={Number(count)} max={maxStatusCount}
-                  color={status === "resolved" ? "bg-emerald-500" : status === "open" ? "bg-sky-500" : status === "in_progress" ? "bg-amber-400" : "bg-slate-300"} />
-              ))}
-            </Card>
-
-            <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-slate-400" /> Cases by Priority
-              </h3>
-              {Object.entries(metrics?.byPriority || {}).map(([priority, count]) => (
-                <SimpleBar key={priority} label={priority} value={Number(count)} max={maxPriorityCount}
-                  color={priority === "critical" ? "bg-rose-500" : priority === "high" ? "bg-orange-500" : priority === "medium" ? "bg-amber-400" : "bg-slate-300"} />
-              ))}
-            </Card>
-
-            <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-slate-400" /> Resolution Metrics
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Avg resolution time</span>
-                  <span className="font-semibold text-slate-700">
-                    {metrics?.resolution.avgMinutes ? `${Math.round(metrics.resolution.avgMinutes)}m` : "—"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Cases resolved</span>
-                  <span className="font-semibold text-emerald-600">{metrics?.resolution.resolvedCount ?? 0}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Avg confidence</span>
-                  <span className="font-semibold text-violet-600">{metrics?.confidence.avg ?? 0}%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Confidence range</span>
-                  <span className="text-slate-600">{metrics?.confidence.min ?? 0}% – {metrics?.confidence.max ?? 0}%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">SLA breaches</span>
-                  <span className={metrics?.slaBreaches ? "font-semibold text-rose-600" : "text-slate-400"}>{metrics?.slaBreaches ?? 0}</span>
-                </div>
+          {tab === "overview" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="Cases (30d)" value={kpi?.cases30d ?? 0} sub={`${kpi?.cases7d ?? 0} this week`} icon={Activity} color="text-slate-700" />
+                <StatCard label="Resolution Rate" value={`${kpi?.resolutionRate30d ?? 0}%`} sub={`${kpi?.resolutionRate7d ?? 0}% this week`}
+                  icon={CheckCircle2} color="text-emerald-600" trend={(kpi?.resolutionRate30d ?? 0) >= 70 ? "up" : "down"} />
+                <StatCard label="Avg Confidence" value={`${kpi?.avgConfidence30d ?? 0}%`} sub="30-day average"
+                  icon={Target} color="text-violet-600" trend={(kpi?.avgConfidence30d ?? 0) >= 75 ? "up" : "neutral"} />
+                <StatCard label="SLA Compliance" value={sla ? `${sla.complianceRate}%` : "—"} sub={sla ? `${sla.breached} breaches` : ""}
+                  icon={ShieldCheck} color={sla && sla.complianceRate >= 90 ? "text-emerald-600" : "text-rose-600"}
+                  trend={sla && sla.complianceRate >= 90 ? "up" : "down"} />
               </div>
-            </Card>
-          </div>
 
-          {pipeline && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-1 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-violet-500" /> 12-Stage Pipeline Performance
-                </h3>
-                <p className="text-xs text-slate-400 mb-4">{pipeline.overall.totalRuns} total runs · {pipeline.overall.avgDurationMs ? `avg ${(pipeline.overall.avgDurationMs / 1000).toFixed(1)}s total` : "no data yet"}</p>
-                {pipeline.stageBreakdown.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">No pipeline runs yet in this period.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {pipeline.stageBreakdown.map(s => (
-                      <div key={s.stage} className="flex items-center gap-2 text-xs">
-                        <span className="w-20 text-slate-500 shrink-0 truncate" title={STAGE_NAMES[s.stage]}>{STAGE_NAMES[s.stage] || `Stage ${s.stage}`}</span>
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <motion.div className="h-full bg-violet-500 rounded-full"
-                            initial={{ width: 0 }} animate={{ width: `${(Number(s.avgDurationMs) / maxStageDuration) * 100}%` }}
-                            transition={{ duration: 0.5 }} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Case Volume Trend</h3>
+                  {volumeData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No case data in this period.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <AreaChart data={volumeData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Area type="monotone" dataKey="total" name="Total" stroke={COLORS.violet} fill={COLORS.violet} fillOpacity={0.15} strokeWidth={2} />
+                        <Area type="monotone" dataKey="critical" name="Critical" stroke={COLORS.rose} fill={COLORS.rose} fillOpacity={0.1} strokeWidth={1.5} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">SLA Compliance</h3>
+                  {!sla || sla.total === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No SLA data yet.</p>
+                  ) : (
+                    <div className="flex items-center gap-6">
+                      <ResponsiveContainer width={160} height={160}>
+                        <PieChart>
+                          <Pie data={[
+                            { name: "Compliant", value: sla.compliant, fill: COLORS.emerald },
+                            { name: "Breached", value: sla.breached, fill: COLORS.rose },
+                          ]} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
+                            <Cell fill={COLORS.emerald} />
+                            <Cell fill={COLORS.rose} />
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                          <span className="text-slate-600">Compliant: <b>{sla.compliant}</b></span>
                         </div>
-                        <span className="text-slate-500 tabular-nums w-12 text-right">{Number(s.avgDurationMs) > 999 ? `${(Number(s.avgDurationMs) / 1000).toFixed(1)}s` : `${s.avgDurationMs}ms`}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-rose-500" />
+                          <span className="text-slate-600">Breached: <b>{sla.breached}</b></span>
+                        </div>
+                        <div className="mt-3 text-2xl font-bold text-slate-800">{sla.complianceRate}%</div>
+                        <p className="text-xs text-slate-400">Compliance rate</p>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {pipeline && (
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-violet-500" /> Pipeline Performance
+                    </h3>
+                    <div className="flex gap-4 text-xs text-slate-500">
+                      <span>{pipeline.overall.totalRuns} runs</span>
+                      <span>{pipeline.overall.avgConfidenceScore}% avg confidence</span>
+                      <span>{pipeline.overall.errorCount} errors</span>
+                    </div>
+                  </div>
+                  {stageData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">No pipeline runs in this period.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stageData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 10, fill: "#64748b" }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="duration" name="Avg ms" fill={COLORS.violet} radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+              )}
+            </div>
+          )}
+
+          {tab === "cases" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Case Volume by Severity</h3>
+                  {volumeData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No data.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={volumeData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
+                        <Bar dataKey="critical" name="Critical" stackId="a" fill={COLORS.rose} />
+                        <Bar dataKey="high" name="High" stackId="a" fill="#f97316" />
+                        <Bar dataKey="medium" name="Medium" stackId="a" fill={COLORS.amber} />
+                        <Bar dataKey="low" name="Low" stackId="a" fill={COLORS.slate} radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </Card>
+
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Status Distribution</h3>
+                  {statusPieData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No data.</p>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <ResponsiveContainer width={200} height={200}>
+                        <PieChart>
+                          <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                            paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                            {statusPieData.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-2 text-xs">
+                        {statusPieData.map(s => (
+                          <div key={s.name} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                            <span className="text-slate-600 capitalize">{s.name}: <b>{s.value}</b></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Priority Distribution</h3>
+                  {priorityPieData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No data.</p>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <ResponsiveContainer width={200} height={200}>
+                        <PieChart>
+                          <Pie data={priorityPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                            paddingAngle={3} dataKey="value">
+                            {priorityPieData.map((entry, i) => (
+                              <Cell key={i} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-2 text-xs">
+                        {priorityPieData.map(s => (
+                          <div key={s.name} className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                            <span className="text-slate-600 capitalize">{s.name}: <b>{s.value}</b></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" /> Resolution Time by Priority
+                  </h3>
+                  {resTimeData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No resolved cases in this period.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={resTimeData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="priority" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} label={{ value: "hours", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#94a3b8" } }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="avg" name="Avg Hours" fill={COLORS.indigo} radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                  <div className="mt-3 space-y-1">
+                    {resTimeData.map(r => (
+                      <div key={r.priority} className="flex justify-between text-xs text-slate-500">
+                        <span className="capitalize">{r.priority}</span>
+                        <span>{r.avg}h avg · {r.min}h min · {r.max}h max · {r.count} cases</span>
                       </div>
                     ))}
                   </div>
-                )}
-              </Card>
+                </Card>
+              </div>
 
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Pipeline KPIs
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Total pipeline runs</span>
-                    <span className="font-semibold text-violet-600">{pipeline.overall.totalRuns}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Avg confidence score</span>
-                    <span className="font-semibold text-emerald-600">{pipeline.overall.avgConfidenceScore}%</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Avg tokens per run</span>
-                    <span className="text-slate-700">{pipeline.overall.avgTokensPerRun?.toLocaleString() || "—"}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Error count</span>
-                    <span className={pipeline.overall.errorCount > 0 ? "font-semibold text-rose-600" : "text-slate-400"}>
-                      {pipeline.overall.errorCount}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Diagnostic attempts</span>
-                    <span className="text-slate-600">{pipeline.overall.attemptCount}</span>
-                  </div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Resolution Metrics</h3>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    { label: "Avg Resolution", value: metrics?.resolution.avgMinutes ? `${Math.round(metrics.resolution.avgMinutes)}m` : "—" },
+                    { label: "Cases Resolved", value: metrics?.resolution.resolvedCount ?? 0 },
+                    { label: "Avg Confidence", value: `${metrics?.confidence.avg ?? 0}%` },
+                    { label: "Confidence Range", value: `${metrics?.confidence.min ?? 0}%–${metrics?.confidence.max ?? 0}%` },
+                    { label: "SLA Breaches", value: metrics?.slaBreaches ?? 0 },
+                  ].map(m => (
+                    <div key={m.label} className="text-center p-3 rounded-lg bg-slate-50">
+                      <p className="text-[10px] font-medium text-slate-400 uppercase">{m.label}</p>
+                      <p className="text-lg font-bold text-slate-800 mt-1">{m.value}</p>
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>
           )}
 
-          {trends && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {tab === "pipeline" && pipeline && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="Total Runs" value={pipeline.overall.totalRuns} icon={Zap} color="text-violet-600" />
+                <StatCard label="Avg Duration" value={pipeline.overall.avgDurationMs ? `${(pipeline.overall.avgDurationMs / 1000).toFixed(1)}s` : "—"}
+                  icon={Clock} color="text-sky-600" />
+                <StatCard label="Avg Confidence" value={`${pipeline.overall.avgConfidenceScore}%`}
+                  icon={Target} color="text-emerald-600" trend={pipeline.overall.avgConfidenceScore >= 75 ? "up" : "neutral"} />
+                <StatCard label="Error Count" value={pipeline.overall.errorCount}
+                  icon={AlertTriangle} color={pipeline.overall.errorCount > 0 ? "text-rose-600" : "text-slate-400"} />
+              </div>
+
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-rose-500" /> Top Error Patterns
-                </h3>
-                {trends.topPatterns.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">No error patterns detected yet.</p>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Stage Duration Breakdown</h3>
+                {stageData.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-10">No pipeline runs in this period.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {trends.topPatterns.slice(0, 8).map(p => (
-                      <div key={p.id}>
-                        <div className="flex justify-between text-xs text-slate-600 mb-0.5">
-                          <span className="truncate max-w-[180px]" title={p.title}>{p.title}</span>
-                          <span className="font-semibold ml-2 shrink-0">{p.occurrenceCount}×</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <motion.div className="h-full bg-rose-400 rounded-full"
-                            initial={{ width: 0 }} animate={{ width: `${(p.occurrenceCount / maxPatternCount) * 100}%` }}
-                            transition={{ duration: 0.5 }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={stageData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} angle={-30} textAnchor="end" height={60} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} label={{ value: "ms", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#94a3b8" } }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
+                      <Bar dataKey="duration" name="Avg Duration (ms)" fill={COLORS.violet} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 )}
               </Card>
 
               <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-sky-500" /> Domain Error Distribution
-                </h3>
-                {trends.domainTrends.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">No domain data yet.</p>
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Token Usage by Stage</h3>
+                {stageData.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-10">No data.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {trends.domainTrends.map((d, i) => {
-                      const maxDomain = Math.max(...trends.domainTrends.map(x => Number(x.totalOccurrences)), 1);
-                      const colors = ["bg-violet-500", "bg-sky-500", "bg-emerald-500", "bg-amber-400", "bg-rose-400", "bg-slate-400"];
-                      return (
-                        <div key={d.domain}>
-                          <div className="flex justify-between text-xs text-slate-600 mb-0.5">
-                            <span>{d.domain}</span>
-                            <span className="font-semibold">{d.totalOccurrences} total · {d.patternCount} patterns</span>
-                          </div>
-                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <motion.div className={`h-full ${colors[i % colors.length]} rounded-full`}
-                              initial={{ width: 0 }} animate={{ width: `${(Number(d.totalOccurrences) / maxDomain) * 100}%` }}
-                              transition={{ duration: 0.5 }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={stageData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{ fontSize: 9, fill: "#94a3b8" }} angle={-30} textAnchor="end" height={60} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="tokens" name="Avg Tokens" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 )}
               </Card>
+            </div>
+          )}
+
+          {tab === "errors" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Error Domain Distribution</h3>
+                  {domainData.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No error patterns detected.</p>
+                  ) : (
+                    <>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={domainData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                          <XAxis dataKey="domain" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                          <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
+                          <Bar dataKey="occurrences" name="Occurrences" fill={COLORS.rose} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="patterns" name="Patterns" fill={COLORS.amber} radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </>
+                  )}
+                </Card>
+
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Top Error Patterns</h3>
+                  {(trends?.topPatterns || []).length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">No error patterns yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                      {trends?.topPatterns.slice(0, 10).map((p, i) => (
+                        <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50">
+                          <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-slate-700 truncate">{p.title}</p>
+                            <p className="text-[10px] text-slate-400">{p.domain} · {p.occurrenceCount} occurrences</p>
+                          </div>
+                          <span className="text-xs font-semibold text-violet-600">{p.avgConfidence}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {trends && Object.keys(trends.escalationBreakdown).length > 0 && (
+                <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-4">Escalation Breakdown (30d)</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={Object.entries(trends.escalationBreakdown).map(([tier, count]) => ({ name: tier, value: count }))}
+                        cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                        {Object.keys(trends.escalationBreakdown).map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {tab === "connectors" && (
+            <div className="space-y-6">
+              {connectorData.length === 0 ? (
+                <Card className="p-8 bg-white border border-slate-200 shadow-sm text-center">
+                  <Wifi className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm text-slate-500">No connector health history yet.</p>
+                  <p className="text-xs text-slate-400 mt-1">Poll connectors on the Connector Health page to start recording data.</p>
+                </Card>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {connectorData.map(c => (
+                      <Card key={c.name} className="p-4 bg-white border border-slate-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-slate-700">{c.name}</span>
+                          <span className={`w-2.5 h-2.5 rounded-full ${c.lastStatus === "healthy" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-lg font-bold text-emerald-600">{c.uptime}%</p>
+                            <p className="text-[10px] text-slate-400">Uptime</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-sky-600">{c.avgLatency}ms</p>
+                            <p className="text-[10px] text-slate-400">Avg Latency</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-slate-600">{c.checks}</p>
+                            <p className="text-[10px] text-slate-400">Checks</p>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Connector Latency Overview</h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={connectorData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} label={{ value: "ms", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#94a3b8" } }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar dataKey="avgLatency" name="Avg Latency (ms)" fill={COLORS.sky} radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                </>
+              )}
             </div>
           )}
         </>
       )}
     </div>
-  );
-}
-
-function Briefcase2({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </svg>
   );
 }

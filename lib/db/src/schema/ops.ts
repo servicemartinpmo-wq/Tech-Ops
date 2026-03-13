@@ -28,6 +28,23 @@ export const environmentSnapshotsTable = pgTable("environment_snapshots", {
 export type EnvironmentSnapshot = typeof environmentSnapshotsTable.$inferSelect;
 export type InsertEnvironmentSnapshot = typeof environmentSnapshotsTable.$inferInsert;
 
+export const connectorHealthHistoryTable = pgTable("connector_health_history", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  connectorName: text("connector_name").notNull(),
+  status: text("status").notNull(),
+  latencyMs: integer("latency_ms"),
+  errorMessage: text("error_message"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("conn_health_hist_user_idx").on(table.userId),
+  index("conn_health_hist_name_idx").on(table.connectorName),
+  index("conn_health_hist_checked_idx").on(table.checkedAt),
+]);
+
+export type ConnectorHealthHistory = typeof connectorHealthHistoryTable.$inferSelect;
+export type InsertConnectorHealthHistory = typeof connectorHealthHistoryTable.$inferInsert;
+
 export const analyticsEventsTable = pgTable("analytics_events", {
   id: serial("id").primaryKey(),
   userId: text("user_id"),

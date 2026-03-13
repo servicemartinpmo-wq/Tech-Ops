@@ -1,0 +1,45 @@
+1️⃣ Core Goals
+Full independence: After migration, your apps only exist on Art-UXI/Tech-Ops — no Replit URLs, Supabase APIs, or auth keys should remain.
+Autonomous migration: Tech-Ops app handles the heavy lifting: exporting data, recreating backend logic, moving storage, updating API endpoints.
+Safe & testable: Ensures every function, workflow, and integration works exactly as before.
+2️⃣ Migration Architecture
+Component	Current	Target/Replacement
+Front-end	Replit web app	Art-UXI front-end app
+Back-end	Supabase (DB + Auth + Functions)	Tech-Ops backend (or Art-UXI integrated backend)
+Storage	Supabase storage buckets	Tech-Ops / Art-UXI storage
+Auth	Supabase auth	Tech-Ops integrated auth
+API calls	Supabase REST/GraphQL	Art-UXI native API endpoints
+3️⃣ Autonomous Migration Workflow
+Step 1: Data & Storage Migration
+Tech-Ops app exports all Supabase tables (JSON/CSV).
+Tech-Ops app recreates tables in its own backend.
+Tech-Ops app migrates storage files and maps URLs to new locations.
+Step 2: Auth Migration
+Export users from Supabase (hashed passwords, roles, sessions).
+Import users into Tech-Ops auth system.
+Ensure all tokens, sessions, and permissions are preserved.
+Step 3: Backend Logic Migration
+Identify all Supabase functions, triggers, and serverless code.
+Auto-convert/rewrite them into Tech-Ops backend scripts.
+Update all internal API references to the new backend.
+Step 4: Front-End Migration
+Copy Replit code into Art-UXI.
+Replace every API call from Supabase endpoints to Tech-Ops endpoints (automated search & replace).
+Replace any platform-specific identifiers (like Replit project URLs) with new Art-UXI references.
+Ensure assets point to the new storage.
+Step 5: Test & Verify
+Tech-Ops runs automated tests on all endpoints, auth, and storage operations.
+Front-end tests CRUD, user flows, and integrations.
+Generate a “migration health report” to confirm no old-platform references remain.
+Step 6: Cutover
+Switch DNS or hosting from old platforms to Art-UXI.
+Tech-Ops app can run a final sweep to remove any lingering old references in code or metadata.
+4️⃣ Automation Notes
+To make it mostly autonomous, your Tech-Ops app needs:
+Database export/import module: Handles table/row migration.
+Auth migration module: Handles user migration safely.
+API refactoring tool: Updates front-end code automatically.
+Storage migration module: Copies files and rewrites URLs.
+Verification module: Confirms nothing points to old platforms.
+Once implemented, migrating all 3 apps can be done with a single guided operation in Tech-Ops.
+If you want, I can draft a concrete “Tech-Ops Autonomous Migration Blueprint” that includes

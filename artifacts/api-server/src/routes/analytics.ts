@@ -1,17 +1,153 @@
 import { Router, type IRouter, type Response } from "express";
-import { eq, desc, and, sql, gte, lte } from "drizzle-orm";
-import { db, casesTable, analyticsEventsTable, errorPatternsTable, diagnosticAttemptsTable, escalationHistoryTable } from "@workspace/db";
+import { eq, desc, and, sql, gte } from "drizzle-orm";
+import {
+  db, pool, casesTable, analyticsEventsTable, errorPatternsTable,
+  diagnosticAttemptsTable, escalationHistoryTable, connectorHealthHistoryTable,
+} from "@workspace/db";
 import type { AuthenticatedRequest } from "../types";
+import { requireFeature } from "../middleware/tierGating";
 
 const router: IRouter = Router();
 
-router.get("/analytics/case-metrics", async (req, res: Response): Promise<void> => {
+const ANALYTICS_FEATURE = "advanced_diagnostics";
+
+function parseDays(daysStr?: string): { days: number; since: Date } {
+  const days = Math.min(Math.max(parseInt(daysStr || "30", 10) || 30, 1), 365);
+  return { days, since: new Date(Date.now() - days * 24 * 60 * 60 * 1000) };
+}
+
+router.get("/analytics/case-volume", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
-  const { days: daysStr } = req.query as { days?: string };
-  const days = parseInt(daysStr || "30", 10) || 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const { days, since } = parseDays(req.query.days as string);
+
+  const result = await pool.query(
+    `SELECT
+      DATE_TRUNC('day', created_at AT TIME ZONE 'UTC')::date as day,
+      count(*) as total,
+      count(*) FILTER (WHERE priority = 'critical') as critical,
+      count(*) FILTER (WHERE priority = 'high') as high,
+      count(*) FILTER (WHERE priority = 'medium') as medium,
+      count(*) FILTER (WHERE priority = 'low') as low
+    FROM cases
+    WHERE user_id = $1 AND created_at >= $2
+    GROUP BY day ORDER BY day ASC`,
+    [authReq.user.id, since.toISOString()]
+  );
+
+  res.json({ period: { days, since: since.toISOString() }, data: result.rows });
+});
+
+router.get("/analytics/resolution-times", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { days, since } = parseDays(req.query.days as string);
+
+  const result = await pool.query(
+    `SELECT
+      priority,
+      round(avg(extract(epoch from (resolved_at - created_at)) / 3600)::numeric, 1) as avg_hours,
+      round(min(extract(epoch from (resolved_at - created_at)) / 3600)::numeric, 1) as min_hours,
+      round(max(extract(epoch from (resolved_at - created_at)) / 3600)::numeric, 1) as max_hours,
+      count(*) as count
+    FROM cases
+    WHERE user_id = $1 AND status = 'resolved' AND resolved_at IS NOT NULL AND created_at >= $2
+    GROUP BY priority ORDER BY
+      CASE priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END`,
+    [authReq.user.id, since.toISOString()]
+  );
+
+  res.json({ period: { days, since: since.toISOString() }, data: result.rows });
+});
+
+router.get("/analytics/error-categories", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const patterns = await db.select({
+    domain: errorPatternsTable.domain,
+    totalOccurrences: sql<number>`sum(occurrence_count)`,
+    patternCount: sql<number>`count(*)`,
+    avgConfidence: sql<number>`round(avg(avg_confidence)::numeric, 1)`,
+  }).from(errorPatternsTable)
+    .groupBy(errorPatternsTable.domain)
+    .orderBy(desc(sql`sum(occurrence_count)`))
+    .limit(10);
+
+  res.json({ data: patterns });
+});
+
+router.get("/analytics/sla-compliance", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { days, since } = parseDays(req.query.days as string);
+
+  const result = await pool.query(
+    `SELECT
+      count(*) as total,
+      count(*) FILTER (WHERE sla_status = 'on_track' OR (status = 'resolved' AND resolved_at <= sla_deadline)) as compliant,
+      count(*) FILTER (WHERE sla_status = 'breached' OR (status = 'resolved' AND resolved_at > sla_deadline)) as breached,
+      count(*) FILTER (WHERE status = 'resolved') as resolved,
+      count(*) FILTER (WHERE status = 'open') as open_cases,
+      count(*) FILTER (WHERE status = 'in_progress') as in_progress
+    FROM cases
+    WHERE user_id = $1 AND created_at >= $2`,
+    [authReq.user.id, since.toISOString()]
+  );
+
+  const row = result.rows[0] || { total: 0, compliant: 0, breached: 0, resolved: 0, open_cases: 0, in_progress: 0 };
+  const total = Number(row.total);
+  const compliant = Number(row.compliant);
+  const complianceRate = total > 0 ? Math.round((compliant / total) * 100) : 100;
+
+  res.json({
+    period: { days, since: since.toISOString() },
+    total,
+    compliant,
+    breached: Number(row.breached),
+    resolved: Number(row.resolved),
+    openCases: Number(row.open_cases),
+    inProgress: Number(row.in_progress),
+    complianceRate,
+  });
+});
+
+router.get("/analytics/connector-health", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { days, since } = parseDays(req.query.days as string);
+
+  const result = await pool.query(
+    `SELECT connector_name, status, latency_ms, checked_at
+    FROM connector_health_history
+    WHERE user_id = $1 AND checked_at >= $2
+    ORDER BY connector_name ASC, checked_at ASC`,
+    [authReq.user.id, since.toISOString()]
+  );
+
+  const grouped: Record<string, Array<{ status: string; latencyMs: number | null; checkedAt: string }>> = {};
+  for (const row of result.rows as Array<Record<string, unknown>>) {
+    const name = String(row.connector_name);
+    if (!grouped[name]) grouped[name] = [];
+    grouped[name].push({
+      status: String(row.status),
+      latencyMs: row.latency_ms != null ? Number(row.latency_ms) : null,
+      checkedAt: String(row.checked_at),
+    });
+  }
+
+  res.json({ period: { days, since: since.toISOString() }, connectors: grouped });
+});
+
+router.get("/analytics/case-metrics", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const { days, since } = parseDays(req.query.days as string);
 
   const byStatus = await db.select({
     status: casesTable.status,
@@ -29,18 +165,17 @@ router.get("/analytics/case-metrics", async (req, res: Response): Promise<void> 
     gte(casesTable.createdAt, since)
   )).groupBy(casesTable.priority);
 
-  const byDay = await db.execute(sql.raw(`
-    SELECT
-      DATE_TRUNC('day', created_at AT TIME ZONE 'UTC') as day,
+  const byDay = await pool.query(
+    `SELECT
+      DATE_TRUNC('day', created_at AT TIME ZONE 'UTC')::date as day,
       count(*) as total,
       count(*) FILTER (WHERE status = 'resolved') as resolved,
       count(*) FILTER (WHERE priority = 'critical') as critical
     FROM cases
-    WHERE user_id = '${authReq.user.id}'
-    AND created_at >= '${since.toISOString()}'
-    GROUP BY day
-    ORDER BY day ASC
-  `));
+    WHERE user_id = $1 AND created_at >= $2
+    GROUP BY day ORDER BY day ASC`,
+    [authReq.user.id, since.toISOString()]
+  );
 
   const avgConfidence = await db.select({
     avg: sql<number>`round(avg(confidence_score)::numeric, 1)`,
@@ -51,16 +186,14 @@ router.get("/analytics/case-metrics", async (req, res: Response): Promise<void> 
     gte(casesTable.createdAt, since)
   ));
 
-  const avgResolutionTime = await db.execute(sql.raw(`
-    SELECT
+  const avgResolutionTime = await pool.query(
+    `SELECT
       round(avg(extract(epoch from (resolved_at - created_at)) / 60)::numeric, 1) as avg_minutes,
       count(*) as resolved_count
     FROM cases
-    WHERE user_id = '${authReq.user.id}'
-    AND status = 'resolved'
-    AND resolved_at IS NOT NULL
-    AND created_at >= '${since.toISOString()}'
-  `));
+    WHERE user_id = $1 AND status = 'resolved' AND resolved_at IS NOT NULL AND created_at >= $2`,
+    [authReq.user.id, since.toISOString()]
+  );
 
   const slaBreaches = await db.select({
     count: sql<number>`count(*)`,
@@ -88,7 +221,7 @@ router.get("/analytics/case-metrics", async (req, res: Response): Promise<void> 
   });
 });
 
-router.get("/analytics/error-trends", async (req, res: Response): Promise<void> => {
+router.get("/analytics/error-trends", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
@@ -121,13 +254,11 @@ router.get("/analytics/error-trends", async (req, res: Response): Promise<void> 
   });
 });
 
-router.get("/analytics/pipeline-performance", async (req, res: Response): Promise<void> => {
+router.get("/analytics/pipeline-performance", requireFeature(ANALYTICS_FEATURE), async (req, res: Response): Promise<void> => {
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
-  const { days: daysStr } = req.query as { days?: string };
-  const days = parseInt(daysStr || "30", 10) || 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const { days, since } = parseDays(req.query.days as string);
 
   const stageStats = await db.select({
     stage: analyticsEventsTable.stage,

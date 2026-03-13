@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, connectorHealthTable } from "@workspace/db";
+import { db, connectorHealthTable, connectorHealthHistoryTable } from "@workspace/db";
 import type { AuthenticatedRequest } from "../types";
 import https from "https";
 import http from "http";
@@ -180,6 +180,16 @@ router.post("/connectors/health/:name/poll", async (req, res: Response): Promise
       })
       .returning();
   }
+
+  try {
+    await db.insert(connectorHealthHistoryTable).values({
+      userId: authReq.user.id,
+      connectorName,
+      status: healthResult.status,
+      latencyMs: healthResult.responseTime,
+      errorMessage: healthResult.message || null,
+    });
+  } catch { /* non-critical */ }
 
   res.json(result);
 });
