@@ -1,0 +1,47 @@
+Plan 1 — Apphia Core + Tech-Ops Platform
+1. Purpose
+Tech-Ops is the backend & infrastructure layer, powered by Apphia:
+AI-driven support & troubleshooting
+System diagnostics & automation
+Knowledge retrieval & reasoning for operations
+2. Architecture Overview
+         Apphia Core
+    (Knowledge + Context)
+            │
+   ┌────────┴────────┐
+   │                 │
+Tech-Ops Backend   Workers & Jobs
+3. Technology Stack
+Layer	Tools / Stack	Purpose
+API Layer	Node.js + tRPC / Express	Handles requests from frontend or CLI
+Database	PostgreSQL (Supabase)	Stores support tickets, system logs, workflows
+Vector Search	pgvector	Embedding-based retrieval of technical knowledge
+Memory / Context	Redis (Upstash)	Session info, context for AI reasoning
+Background Jobs	BullMQ	Embedding updates, indexing, diagnostics
+Storage	Supabase Storage / S3	Logs, screenshots, diagnostic files
+Analytics	ClickHouse	Error trends, usage metrics, performance logs
+Monitoring	Prometheus + Grafana	Observability & alerting
+4. Apphia Knowledge Layer (Tech-Ops Specific)
+Domains:
+Technology / Software debugging
+System administration
+Infrastructure frameworks
+Automation & workflow heuristics
+Schema:
+knowledge_nodes:
+id, domain, title, type, description, source, embedding, confidence_score
+
+knowledge_edges:
+node_a, node_b, relationship_type, weight
+Context Layer (Redis):
+session_id, user_id, active_issue, workflow_state, environment
+5. Key Workflows
+AI Support Flow:
+User reports issue → Context Engine retrieves environment → Apphia retrieves relevant nodes → Reasoning Engine executes diagnostic workflow → Tech-Ops executes fixes → Result returned
+Background Task Flow:
+New knowledge added → Embeddings generated → Vector DB updated → Job completed → Metrics stored in analytics
+6. Operational Plan (Tech-Ops)
+Phase	Tasks / Deliverables
+MVP	Basic ticket management, embedding search, simple diagnostics, Replit deployment
+Phase 2	Context engine, workflow reasoning, AI-assisted support, background jobs
+Phase 3	Full analytics, monitoring, scaling, multi-user system diagnostics
