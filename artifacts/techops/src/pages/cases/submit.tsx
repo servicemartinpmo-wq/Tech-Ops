@@ -212,7 +212,7 @@ export default function SubmitCase() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-slate-600 font-medium">Priority</Label>
                 <Select value={priority} onValueChange={setPriority}>
@@ -229,8 +229,9 @@ export default function SubmitCase() {
               <div className="space-y-2">
                 <Label className="text-slate-600 font-medium">Category</Label>
                 <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="unsure">I'm not sure</SelectItem>
                     <SelectItem value="infrastructure">Infrastructure</SelectItem>
                     <SelectItem value="database">Database</SelectItem>
                     <SelectItem value="network">Network</SelectItem>
@@ -240,18 +241,18 @@ export default function SubmitCase() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-slate-600 font-medium">Environment</Label>
-                <Select value={environment} onValueChange={setEnvironment}>
-                  <SelectTrigger><SelectValue placeholder="Select environment" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="production">Production</SelectItem>
-                    <SelectItem value="staging">Staging</SelectItem>
-                    <SelectItem value="development">Development</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-slate-600 font-medium">What do you see?</Label>
+              <Textarea
+                placeholder={`Describe what's happening on your screen — e.g. "I see an error message saying...", "the page won't load", "it was working fine yesterday but now..."`}
+                value={environment}
+                onChange={(e) => setEnvironment(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-[11px] text-slate-400">This helps us understand exactly what you're experiencing so we can fix it faster.</p>
             </div>
 
             {/* SLA badge */}
