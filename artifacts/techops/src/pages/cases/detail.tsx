@@ -1,4 +1,18 @@
 import { useParams, Link, useLocation } from "wouter";
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+    .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/>\s+/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 import { useGetCase, useUpdateCase } from "@workspace/api-client-react";
 import { useSseDiagnostic, type KnowledgeSource } from "@/hooks/use-sse-diagnostic";
 import { useApiBase } from "@/hooks/use-api-base";
@@ -6,7 +20,8 @@ import { Card, Button, Badge } from "@/components/ui";
 import {
   ArrowLeft, Play, Terminal, CheckCircle2, AlertTriangle, ShieldAlert, Brain,
   GitBranch, ThumbsUp, ThumbsDown, Zap, AlertCircle, ChevronRight, BookOpen,
-  ArrowRight, Cpu, Monitor, X, Clock, FileText, ImageIcon, Paperclip, Database, ChevronDown
+  ArrowRight, Cpu, Monitor, X, Clock, FileText, ImageIcon, Paperclip, Database,
+  ChevronDown, StopCircle, MousePointer2, Eye, EyeOff, BedDouble, WifiOff
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -497,6 +512,140 @@ function EnvironmentPanel({ snapshot }: { snapshot: EnvironmentSnapshot }) {
   );
 }
 
+const WALKTHROUGH_STEPS = [
+  "Scanning page structure...",
+  "Testing form validation logic...",
+  "Checking button responses...",
+  "Verifying API connectivity...",
+  "Reviewing error state rendering...",
+  "Confirming navigation links...",
+  "Testing data load states...",
+  "Checking auth session...",
+];
+
+function ScreenSharePanel({
+  stream, onStop, caseId,
+}: { stream: MediaStream; onStop: () => void; caseId: number }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [walkthroughActive, setWalkthroughActive] = useState(false);
+  const [sleepMode, setSleepMode] = useState(false);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [stepDone, setStepDone] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  useEffect(() => {
+    if (!walkthroughActive || sleepMode) return;
+    const id = setInterval(() => {
+      setStepIdx(i => {
+        const next = (i + 1) % WALKTHROUGH_STEPS.length;
+        setStepDone(d => [...d, i]);
+        return next;
+      });
+    }, 2800);
+    return () => clearInterval(id);
+  }, [walkthroughActive, sleepMode]);
+
+  const handleTakeControl = () => {
+    setSleepMode(true);
+    setWalkthroughActive(false);
+  };
+
+  const handleDone = () => {
+    setSleepMode(false);
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <AnimatePresence>
+        {sleepMode && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <BedDouble className="w-5 h-5 text-amber-500 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-800">You have control</p>
+              <p className="text-xs text-amber-600">Automated actions are paused. Tap Done when you're finished — the session will resume.</p>
+            </div>
+            <button onClick={handleDone}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-semibold rounded-lg transition-colors">
+              Done
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Card className="p-4 border-sky-200 bg-sky-50/50 overflow-hidden">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+            <span className="text-sm font-semibold text-slate-800">Screen Sharing — Ticket #{caseId}</span>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={() => { setWalkthroughActive(v => !v); if (sleepMode) setSleepMode(false); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${walkthroughActive && !sleepMode ? "bg-violet-100 border-violet-200 text-violet-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+              {walkthroughActive && !sleepMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {walkthroughActive && !sleepMode ? "Stop Walkthrough" : "Guided Walkthrough"}
+            </button>
+            <button onClick={handleTakeControl} disabled={sleepMode}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-white border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors">
+              <MousePointer2 className="w-3.5 h-3.5" />
+              Take Control
+            </button>
+            <button onClick={onStop}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-red-50 border-red-200 text-red-600 hover:bg-red-100 transition-colors">
+              <StopCircle className="w-3.5 h-3.5" />
+              End Session
+            </button>
+          </div>
+        </div>
+
+        <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700" style={{ aspectRatio: "16/9", maxHeight: "340px" }}>
+          <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+          {sleepMode && (
+            <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center gap-3">
+              <WifiOff className="w-10 h-10 text-amber-400" />
+              <p className="text-white font-semibold text-sm">User in control — session paused</p>
+              <p className="text-slate-400 text-xs">Tap Done above to resume</p>
+            </div>
+          )}
+          {walkthroughActive && !sleepMode && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+              className="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur border border-violet-500/30 rounded-xl p-3 w-56">
+              <p className="text-[10px] font-semibold text-violet-400 uppercase tracking-wider mb-2">Apphia is checking</p>
+              <div className="space-y-1">
+                {WALKTHROUGH_STEPS.slice(0, 5).map((step, i) => {
+                  const done = stepDone.includes(i);
+                  const active = i === stepIdx % 5;
+                  return (
+                    <div key={i} className={`flex items-center gap-2 text-[11px] transition-colors ${active ? "text-white" : done ? "text-slate-500 line-through" : "text-slate-600"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${active ? "bg-violet-400 animate-pulse" : done ? "bg-emerald-500" : "bg-slate-700"}`} />
+                      {step}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {walkthroughActive && !sleepMode && (
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+            className="mt-3 flex items-center gap-2 p-3 bg-violet-50 border border-violet-100 rounded-lg">
+            <span className="flex h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
+            <p className="text-xs text-violet-700 font-medium">{WALKTHROUGH_STEPS[stepIdx % WALKTHROUGH_STEPS.length]}</p>
+            <button onClick={handleTakeControl} className="ml-auto text-xs text-violet-500 hover:text-violet-700 underline underline-offset-2">
+              I'll handle this
+            </button>
+          </motion.div>
+        )}
+      </Card>
+    </motion.div>
+  );
+}
+
 export default function CaseDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
@@ -511,6 +660,22 @@ export default function CaseDetail() {
   const [loadingDecision, setLoadingDecision] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
   const [envSnapshot, setEnvSnapshot] = useState<EnvironmentSnapshot | null>(null);
+  const [shareStream, setShareStream] = useState<MediaStream | null>(null);
+
+  const startScreenShare = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      stream.getVideoTracks()[0].addEventListener("ended", () => setShareStream(null));
+      setShareStream(stream);
+    } catch {
+      // user cancelled or not supported
+    }
+  }, []);
+
+  const stopScreenShare = useCallback(() => {
+    shareStream?.getTracks().forEach(t => t.stop());
+    setShareStream(null);
+  }, [shareStream]);
 
   useEffect(() => {
     if (!caseId) return;
@@ -537,11 +702,7 @@ export default function CaseDetail() {
     } catch {} finally { setLoadingDecision(false); }
   }
 
-  function handleDeploy(withScreenShare: boolean) {
-    if (withScreenShare) {
-      setLocation("/remote-assistance");
-      return;
-    }
+  function handleDeploy(_withScreenShare: boolean) {
     updateCase({ id: caseId, data: { status: "resolved" } }, { onSuccess: () => refetch() });
   }
 
@@ -565,7 +726,18 @@ export default function CaseDetail() {
           <p className="text-slate-500 mt-1.5 max-w-3xl leading-relaxed text-sm">{diagnosticCase.description || "No description provided."}</p>
         </div>
 
-        <div className="flex gap-2 shrink-0">
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {shareStream ? (
+            <Button variant="outline" size="sm" onClick={stopScreenShare} className="border-red-200 text-red-600 hover:bg-red-50">
+              <StopCircle className="w-4 h-4 mr-2" />
+              End Sharing
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => void startScreenShare()} className="border-sky-200 text-sky-600 hover:bg-sky-50">
+              <Monitor className="w-4 h-4 mr-2" />
+              Start Screen Sharing
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={loadDecisionTree} disabled={loadingDecision} className="border-violet-200 text-violet-600 hover:bg-violet-50">
             {loadingDecision ? <span className="w-4 h-4 border border-violet-400 border-t-transparent rounded-full animate-spin mr-2" /> : <Brain className="w-4 h-4 mr-2" />}
             Decision Engine
@@ -576,6 +748,12 @@ export default function CaseDetail() {
           </Button>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {shareStream && (
+          <ScreenSharePanel stream={shareStream} onStop={stopScreenShare} caseId={caseId} />
+        )}
+      </AnimatePresence>
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
         <AutoDeployPanel
@@ -685,13 +863,13 @@ export default function CaseDetail() {
                   {diagnosticCase.rootCause && (
                     <div>
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Root Cause</p>
-                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{diagnosticCase.rootCause}</p>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{stripMarkdown(diagnosticCase.rootCause)}</p>
                     </div>
                   )}
                   {diagnosticCase.resolution && (
                     <div>
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Recommended Resolution</p>
-                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{diagnosticCase.resolution}</p>
+                      <p className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-emerald-100">{stripMarkdown(diagnosticCase.resolution)}</p>
                     </div>
                   )}
                 </div>

@@ -288,6 +288,37 @@ Be direct, precise, and technical. This is for the platform creator, not an end 
   }
 }));
 
+// ── Case Intelligence ─────────────────────────────────────────────────────────
+
+router.get("/admin/case-intelligence", requireRole("admin"), handle(async (req, res) => {
+  const limit  = Math.min(parseInt(String(req.query.limit || "100"), 10) || 100, 500);
+  const offset = parseInt(String(req.query.offset || "0"), 10) || 0;
+
+  const cases = await db.select({
+    id: casesTable.id,
+    title: casesTable.title,
+    description: casesTable.description,
+    status: casesTable.status,
+    priority: casesTable.priority,
+    diagnosticTier: casesTable.diagnosticTier,
+    rootCause: casesTable.rootCause,
+    resolution: casesTable.resolution,
+    confidenceScore: casesTable.confidenceScore,
+    signals: casesTable.signals,
+    userId: casesTable.userId,
+    createdAt: casesTable.createdAt,
+    resolvedAt: casesTable.resolvedAt,
+    escalated: casesTable.escalated,
+    slaStatus: casesTable.slaStatus,
+  }).from(casesTable)
+    .orderBy(desc(casesTable.createdAt))
+    .limit(limit).offset(offset);
+
+  const total = await db.select({ count: sql<number>`count(*)` }).from(casesTable);
+
+  res.json({ data: cases, total: Number(total[0]?.count || 0), limit, offset });
+}));
+
 // ── Audit Log ─────────────────────────────────────────────────────────────────
 
 router.get("/admin/audit-log", requireRole("admin"), handle(async (req, res) => {

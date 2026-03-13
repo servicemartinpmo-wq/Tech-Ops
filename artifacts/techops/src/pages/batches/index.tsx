@@ -285,7 +285,7 @@ export default function BatchDiagnostics() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-3xl font-display font-bold text-slate-900">Run Checks</h1>
-        <p className="text-slate-500 mt-1">Execute parallel diagnostic pipelines across multiple cases with tier-based concurrency.</p>
+        <p className="text-slate-500 mt-1">Run checks across multiple tickets at once. Your plan determines how many can run at the same time.</p>
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
