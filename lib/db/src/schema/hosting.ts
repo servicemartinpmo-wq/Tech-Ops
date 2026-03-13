@@ -135,26 +135,26 @@ export const HOSTED_PROJECT_TYPES = ["app", "web", "api", "static"] as const;
 export type HostedProjectType = typeof HOSTED_PROJECT_TYPES[number];
 
 export const insertHostedProjectSchema = z.object({
-  name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(63).regex(/^[a-z0-9-]+$/, "slug must be lowercase letters, numbers, hyphens only"),
+  name: z.string().min(1),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/, "slug must be lowercase letters, numbers, hyphens only"),
   type: z.enum(HOSTED_PROJECT_TYPES),
-  description: z.string().max(500).optional(),
-  framework: z.string().max(50).optional(),
-  buildCommand: z.string().max(500).optional(),
-  startCommand: z.string().max(500).optional(),
-  outputDir: z.string().max(200).optional(),
+  description: z.string().optional(),
+  framework: z.string().optional(),
+  buildCommand: z.string().optional(),
+  startCommand: z.string().optional(),
+  outputDir: z.string().optional(),
   envVars: z.record(z.string(), z.string()).optional().default({}),
-  tags: z.array(z.string()).max(10).optional().default([]),
+  tags: z.array(z.string()).optional().default([]),
   settings: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 export const insertHostedDomainSchema = z.object({
-  domain: z.string().min(4).max(253).regex(
+  domain: z.string().min(4).regex(
     /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/,
     "Invalid domain format"
   ),
-  subdomain: z.string().max(63).optional(),
+  subdomain: z.string().optional(),
   projectId: z.number().int().positive().optional(),
-  registrar: z.string().max(100).optional(),
+  registrar: z.string().optional(),
   autoRenewSsl: z.boolean().optional().default(true),
 });

@@ -110,7 +110,7 @@ router.post("/remote/screenshare", handle(async (req, res) => {
 }));
 
 router.post("/remote/screenshare/:id/action", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
   const { sessionToken, sessionKey, salt, actionType, payload } = req.body;
@@ -189,7 +189,7 @@ router.post("/remote/screenshare/:id/action", handle(async (req, res) => {
 }));
 
 router.post("/remote/screenshare/:id/decrypt-log", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
   const { sessionToken, sessionKey, salt } = req.body;
@@ -230,7 +230,7 @@ router.post("/remote/screenshare/:id/decrypt-log", handle(async (req, res) => {
 }));
 
 router.get("/remote/screenshare/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
   const [session] = await db.select({
@@ -284,7 +284,7 @@ router.get("/remote/screenshare", handle(async (req, res) => {
 }));
 
 router.post("/remote/screenshare/:id/close", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid session ID" }); return; }
 
   const [session] = await db.select({ id: screenshareSessionsTable.id, actionLog: screenshareSessionsTable.actionLog })

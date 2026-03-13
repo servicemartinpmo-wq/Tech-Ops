@@ -3,7 +3,7 @@ import { Card } from "@/components/ui";
 import { useApiBase } from "@/hooks/use-api-base";
 import {
   BarChart3, TrendingUp, TrendingDown, Clock, CheckCircle2, AlertTriangle,
-  Zap, Target, Activity, RefreshCw, ShieldCheck, Wifi,
+  Zap, Target, Activity, RefreshCw, ShieldCheck, Wifi, Lock, ArrowUpRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -127,10 +127,119 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
+function TierBlockedBanner() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-20 px-6 text-center"
+    >
+      <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center mb-5">
+        <Lock className="w-8 h-8 text-violet-600" />
+      </div>
+      <h2 className="text-xl font-bold text-slate-800 mb-2">Analytics require a Professional plan or higher</h2>
+      <p className="text-sm text-slate-500 max-w-md mb-6">
+        Detailed case analytics, pipeline performance, SLA compliance tracking, and connector health history are available on the Professional, Compliance, and Enterprise plans.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 w-full max-w-lg text-xs">
+        {[
+          { plan: "Professional", price: "$349/mo", features: ["Case analytics", "Pipeline metrics", "SLA tracking"] },
+          { plan: "Compliance",   price: "$749/mo", features: ["All Professional features", "Connector health history", "Full diagnostics"] },
+          { plan: "Enterprise",   price: "Custom",  features: ["All features", "Priority support", "Custom SLA"] },
+        ].map(p => (
+          <div key={p.plan} className="border border-slate-200 rounded-xl p-4 bg-white text-left">
+            <p className="font-semibold text-slate-800 mb-0.5">{p.plan}</p>
+            <p className="text-violet-600 font-bold mb-2">{p.price}</p>
+            {p.features.map(f => (
+              <p key={f} className="text-slate-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />{f}</p>
+            ))}
+          </div>
+        ))}
+      </div>
+      <a href="/billing" className="inline-flex items-center gap-2 bg-violet-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors">
+        Upgrade Plan <ArrowUpRight className="w-4 h-4" />
+      </a>
+    </motion.div>
+  );
+}
+
+function ConnectorTimeline({ connectors }: { connectors: Record<string, Array<{ status: string; latencyMs: number | null; checkedAt: string }>> }) {
+  const entries = Object.entries(connectors);
+  if (entries.length === 0) return null;
+
+  const statusColor: Record<string, string> = {
+    healthy:  "bg-emerald-500",
+    degraded: "bg-amber-400",
+    down:     "bg-rose-500",
+    unknown:  "bg-slate-300",
+  };
+  const statusLabel: Record<string, string> = {
+    healthy: "Healthy", degraded: "Degraded", down: "Down", unknown: "Unknown",
+  };
+
+  return (
+    <Card className="p-5 bg-white border border-slate-200 shadow-sm">
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Connector Status Timeline</h3>
+      <p className="text-xs text-slate-400 mb-4">Each cell represents one health check. Hover for details.</p>
+      <div className="space-y-4">
+        {entries.map(([name, checks]) => {
+          const sorted = [...checks].sort((a, b) => new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime());
+          const uptime = sorted.length > 0
+            ? Math.round((sorted.filter(c => c.status === "healthy").length / sorted.length) * 100)
+            : 0;
+          const lastStatus = sorted[sorted.length - 1]?.status || "unknown";
+
+          return (
+            <div key={name}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${statusColor[lastStatus] || statusColor.unknown}`} />
+                  <span className="text-xs font-semibold text-slate-700">{name}</span>
+                  <span className="text-[10px] text-slate-400">{sorted.length} checks</span>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                  <span className={`font-semibold ${uptime >= 95 ? "text-emerald-600" : uptime >= 80 ? "text-amber-600" : "text-rose-600"}`}>
+                    {uptime}% uptime
+                  </span>
+                  <span className="text-slate-400">{statusLabel[lastStatus] || "Unknown"}</span>
+                </div>
+              </div>
+              <div className="flex gap-0.5 flex-wrap">
+                {sorted.map((check, idx) => {
+                  const color = statusColor[check.status] || statusColor.unknown;
+                  const ts    = new Date(check.checkedAt).toLocaleString();
+                  const lat   = check.latencyMs != null ? `${check.latencyMs}ms` : "—";
+                  return (
+                    <div
+                      key={idx}
+                      title={`${ts}\nStatus: ${statusLabel[check.status] || check.status}\nLatency: ${lat}`}
+                      className={`${color} rounded-sm cursor-default transition-opacity hover:opacity-70`}
+                      style={{ width: 12, height: 20 }}
+                    />
+                  );
+                })}
+                {sorted.length === 0 && (
+                  <p className="text-xs text-slate-400 italic">No checks recorded yet</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /> Healthy</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" /> Degraded</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-rose-500 inline-block" /> Down</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-slate-300 inline-block" /> Unknown</span>
+      </div>
+    </Card>
+  );
+}
+
 export default function Analytics() {
   const apiBase = useApiBase();
   const [period, setPeriod] = useState<Period>("30");
   const [tab, setTab] = useState<Tab>("overview");
+  const [tierBlocked, setTierBlocked] = useState(false);
   const [kpi, setKpi] = useState<KPI | null>(null);
   const [metrics, setMetrics] = useState<CaseMetrics | null>(null);
   const [pipeline, setPipeline] = useState<PipelinePerf | null>(null);
@@ -155,14 +264,27 @@ export default function Analytics() {
         fetch(`${apiBase}/api/analytics/sla-compliance?days=${period}`, opts),
         fetch(`${apiBase}/api/analytics/connector-health?days=${period}`, opts),
       ]);
-      const results = await Promise.all([kR, mR, pR, tR, cvR, rtR, slaR, chR].map(async r => {
-        if (!r.ok) return null;
-        return r.json();
-      }));
-      setKpi(results[0]); setMetrics(results[1]); setPipeline(results[2]);
-      setTrends(results[3]); setCaseVolume(results[4]); setResTimes(results[5]);
-      setSla(results[6]); setConnHealth(results[7]);
-    } catch { /* ignore */ } finally {
+
+      // Detect tier block — any gated endpoint returning 403
+      const gated = [cvR, rtR, slaR, chR];
+      if (gated.some(r => r.status === 403)) {
+        setTierBlocked(true);
+        const kpiData = kR.ok ? await kR.json() : null;
+        setKpi(kpiData);
+        setLoading(false);
+        return;
+      }
+      setTierBlocked(false);
+
+      const parse = async (r: Response) => r.ok ? r.json().catch(() => null) : null;
+      const [kpiD, mD, pD, tD, cvD, rtD, slaD, chD] = await Promise.all([
+        parse(kR), parse(mR), parse(pR), parse(tR), parse(cvR), parse(rtR), parse(slaR), parse(chR),
+      ]);
+      setKpi(kpiD); setMetrics(mD); setPipeline(pD); setTrends(tD);
+      setCaseVolume(cvD); setResTimes(rtD); setSla(slaD); setConnHealth(chD);
+    } catch (err) {
+      console.error("[analytics] fetchAll error:", err);
+    } finally {
       setLoading(false);
     }
   }
@@ -286,7 +408,9 @@ export default function Analytics() {
         </div>
       )}
 
-      {!loading && (
+      {!loading && tierBlocked && <TierBlockedBanner />}
+
+      {!loading && !tierBlocked && (
         <>
           {tab === "overview" && (
             <div className="space-y-6">
@@ -667,8 +791,12 @@ export default function Analytics() {
                     ))}
                   </div>
 
+                  {connHealth?.connectors && (
+                    <ConnectorTimeline connectors={connHealth.connectors} />
+                  )}
+
                   <Card className="p-5 bg-white border border-slate-200 shadow-sm">
-                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Connector Latency Overview</h3>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4">Average Latency by Connector</h3>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={connectorData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />

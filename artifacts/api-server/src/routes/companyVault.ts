@@ -8,8 +8,6 @@ import { z } from "zod/v4";
 
 const router = Router();
 
-const MAX_CONTENT_BYTES = 5 * 1024 * 1024;
-
 function encryptDoc(content: string, passphrase: string): {
   encryptedContent: string; iv: string; salt: string; authTag: string;
 } {
@@ -47,15 +45,15 @@ function handle(fn: (req: AuthenticatedRequest, res: Response) => Promise<void>)
 }
 
 const createDocSchema = z.object({
-  category:       z.enum(VAULT_CATEGORIES as [string, ...string[]]),
-  title:          z.string().min(1).max(200),
-  description:    z.string().max(1000).optional(),
+  category:       z.enum([...VAULT_CATEGORIES] as [string, ...string[]]),
+  title:          z.string().min(1),
+  description:    z.string().optional(),
   content:        z.string().min(1),
   passphrase:     z.string().min(8, "Passphrase must be at least 8 characters"),
-  fileType:       z.string().max(20).optional(),
-  tags:           z.array(z.string().max(50)).max(20).optional().default([]),
+  fileType:       z.string().optional(),
+  tags:           z.array(z.string()).optional().default([]),
   isConfidential: z.boolean().optional().default(true),
-  sharedWith:     z.array(z.string()).max(50).optional().default([]),
+  sharedWith:     z.array(z.string()).optional().default([]),
   expiresAt:      z.string().datetime().optional(),
   metadata:       z.record(z.string(), z.unknown()).optional().default({}),
 });
@@ -107,7 +105,7 @@ router.get("/company-vault/documents", handle(async (req, res) => {
 }));
 
 router.get("/company-vault/documents/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid document ID" }); return; }
 
   const [doc] = await db.select({
@@ -148,7 +146,7 @@ router.get("/company-vault/documents/:id", handle(async (req, res) => {
 }));
 
 router.post("/company-vault/documents/:id/unlock", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid document ID" }); return; }
 
   const { passphrase } = req.body;
@@ -201,11 +199,6 @@ router.post("/company-vault/documents", handle(async (req, res) => {
 
   const { content, passphrase, ...meta } = parsed.data;
 
-  if (Buffer.byteLength(content, "utf8") > MAX_CONTENT_BYTES) {
-    res.status(413).json({ error: "Document content exceeds 5 MB limit" });
-    return;
-  }
-
   const { encryptedContent, iv, salt, authTag } = encryptDoc(content, passphrase);
 
   const [doc] = await db.insert(companyVaultDocumentsTable).values({
@@ -239,7 +232,7 @@ router.post("/company-vault/documents", handle(async (req, res) => {
 }));
 
 router.patch("/company-vault/documents/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid document ID" }); return; }
 
   const [doc] = await db.select().from(companyVaultDocumentsTable)
@@ -255,10 +248,6 @@ router.patch("/company-vault/documents/:id", handle(async (req, res) => {
   const updates: Record<string, unknown> = { updatedAt: new Date() };
 
   if (content !== undefined && passphrase !== undefined) {
-    if (Buffer.byteLength(content, "utf8") > MAX_CONTENT_BYTES) {
-      res.status(413).json({ error: "Document content exceeds 5 MB limit" });
-      return;
-    }
     const enc = encryptDoc(content, passphrase);
     Object.assign(updates, enc, {
       fileSizeBytes: Buffer.byteLength(content, "utf8"),
@@ -289,7 +278,7 @@ router.patch("/company-vault/documents/:id", handle(async (req, res) => {
 }));
 
 router.delete("/company-vault/documents/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid document ID" }); return; }
 
   const [doc] = await db.select({ id: companyVaultDocumentsTable.id }).from(companyVaultDocumentsTable)

@@ -19,10 +19,10 @@ function handle(fn: (req: AuthenticatedRequest, res: Response) => Promise<void>)
 }
 
 const recommendSchema = z.object({
-  question:  z.string().min(3).max(2000),
-  context:   z.string().max(5000).optional(),
+  question:  z.string().min(3),
+  context:   z.string().optional(),
   caseId:    z.number().int().positive().optional(),
-  domain:    z.string().max(100).optional(),
+  domain:    z.string().optional(),
   urgency:   z.enum(["low", "medium", "high", "critical"]).optional().default("medium"),
 });
 

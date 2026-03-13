@@ -59,7 +59,7 @@ router.get("/hosting/projects", handle(async (req, res) => {
 }));
 
 router.get("/hosting/projects/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   const [project] = await db.select().from(hostedProjectsTable)
@@ -113,7 +113,7 @@ router.post("/hosting/projects", handle(async (req, res) => {
 }));
 
 router.patch("/hosting/projects/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   const [project] = await db.select().from(hostedProjectsTable)
@@ -143,7 +143,7 @@ router.patch("/hosting/projects/:id", handle(async (req, res) => {
 }));
 
 router.delete("/hosting/projects/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid project ID" }); return; }
 
   const [project] = await db.select({ id: hostedProjectsTable.id }).from(hostedProjectsTable)
@@ -222,7 +222,7 @@ router.post("/hosting/domains", handle(async (req, res) => {
 }));
 
 router.post("/hosting/domains/:id/verify", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid domain ID" }); return; }
 
   const [domain] = await db.select().from(hostedDomainsTable)
@@ -256,7 +256,7 @@ router.post("/hosting/domains/:id/verify", handle(async (req, res) => {
 }));
 
 router.delete("/hosting/domains/:id", handle(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid domain ID" }); return; }
 
   const [domain] = await db.select({ id: hostedDomainsTable.id }).from(hostedDomainsTable)
