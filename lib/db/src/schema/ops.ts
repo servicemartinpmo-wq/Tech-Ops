@@ -18,6 +18,7 @@ export const environmentSnapshotsTable = pgTable("environment_snapshots", {
   metrics: jsonb("metrics").$type<Record<string, number>>(),
   flags: jsonb("flags").$type<string[]>(),
   rawContext: text("raw_context"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("env_snapshots_user_idx").on(table.userId),

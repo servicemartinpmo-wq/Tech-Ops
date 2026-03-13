@@ -5,6 +5,7 @@ import {
   analyticsEventsTable, errorPatternsTable, escalationHistoryTable,
   knowledgeNodesTable, environmentSnapshotsTable,
 } from "@workspace/db";
+import { z } from "zod";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import type { AuthenticatedRequest } from "../types";
@@ -833,19 +834,32 @@ router.post("/cases/:id/environment", async (req, res: Response): Promise<void> 
     .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, authReq.user.id)));
   if (!caseItem) { res.status(404).json({ error: "Case not found" }); return; }
 
-  const { osInfo, techStack, activeServices, recentErrors, environment, cloudProvider, region } = req.body;
+  const EnvironmentSnapshotBody = z.object({
+    osInfo: z.string().max(200).optional(),
+    techStack: z.array(z.string().max(100)).max(50).optional(),
+    activeServices: z.array(z.string().max(100)).max(50).optional(),
+    recentErrors: z.array(z.object({ message: z.string().max(500), timestamp: z.string().max(100) })).max(20).optional(),
+    environment: z.enum(["production", "staging", "development"]).optional(),
+    cloudProvider: z.string().max(100).optional(),
+    region: z.string().max(100).optional(),
+  });
+
+  const parsed = EnvironmentSnapshotBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { osInfo, techStack, activeServices, recentErrors, environment, cloudProvider, region } = parsed.data;
 
   const [snapshot] = await db.insert(environmentSnapshotsTable).values({
     userId: authReq.user.id,
     caseId,
     label: `Case #${caseId} environment`,
-    osInfo: osInfo || null,
-    techStack: Array.isArray(techStack) ? techStack : null,
-    activeServices: Array.isArray(activeServices) ? activeServices : null,
-    recentErrors: Array.isArray(recentErrors) ? recentErrors : null,
-    environment: environment || "production",
-    cloudProvider: cloudProvider || null,
-    region: region || null,
+    osInfo: osInfo ?? null,
+    techStack: techStack ?? null,
+    activeServices: activeServices ?? null,
+    recentErrors: recentErrors ?? null,
+    environment: environment ?? "production",
+    cloudProvider: cloudProvider ?? null,
+    region: region ?? null,
   }).returning();
 
   res.status(201).json(snapshot);
