@@ -194,6 +194,24 @@ router.patch("/cases/:id", async (req, res: Response): Promise<void> => {
   const [updated] = await db.update(casesTable).set(updateData)
     .where(and(eq(casesTable.id, id), eq(casesTable.userId, authReq.user.id))).returning();
   if (!updated) { res.status(404).json({ error: "Case not found" }); return; }
+
+  if (parsed.data.status === "resolved") {
+    try {
+      const [latestAttempt] = await db.select({ udoGraph: diagnosticAttemptsTable.udoGraph })
+        .from(diagnosticAttemptsTable)
+        .where(eq(diagnosticAttemptsTable.caseId, id))
+        .orderBy(desc(diagnosticAttemptsTable.createdAt))
+        .limit(1);
+      const citedIds = (latestAttempt?.udoGraph as Record<string, unknown>)?.citedKbNodeIds as number[] | undefined;
+      if (citedIds && citedIds.length > 0) {
+        await pool.query(
+          `UPDATE knowledge_nodes SET confidence_score = LEAST(1.0, confidence_score + 0.01) WHERE id = ANY($1::int[])`,
+          [citedIds]
+        );
+      }
+    } catch { /* non-critical */ }
+  }
+
   res.json(updated);
 });
 
@@ -264,6 +282,32 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
 
     sendEvent({ type: "pipeline_start", stages: 12, severity, intent, caseId: id });
 
+    // ─── PRE-STAGE: KB Semantic Retrieval (before any LLM calls) ─────────────
+    const kbResults = await kbSemanticSearch(queryText, undefined, 5);
+    ctx.kbEvidence = kbResults;
+
+    sendEvent({
+      type: "knowledge_sources",
+      data: kbResults.map(k => ({
+        id: k.id,
+        externalId: k.externalId,
+        title: k.title,
+        domain: k.domain,
+        subdomain: k.subdomain,
+        confidenceScore: Math.round(k.confidence),
+      })),
+    });
+
+    const retrievedContextBlock = kbResults.length > 0
+      ? `\n\nRetrieved context from knowledge graph (${kbResults.length} nodes, cosine similarity):\n` +
+        kbResults.map((r, i) =>
+          `[${i + 1}] ${r.externalId} — ${r.title} (${r.domain}/${r.subdomain || "general"}) — similarity: ${r.confidence.toFixed(1)}%\n` +
+          `   Symptoms: ${(r.symptoms || []).slice(0, 3).join("; ")}\n` +
+          `   Resolution hints: ${(r.resolutionSteps || []).slice(0, 2).join("; ")}\n` +
+          `   Self-healable: ${r.selfHealable || "unknown"}`
+        ).join("\n")
+      : "\n\nNo knowledge graph matches found. Proceed with first-principles analysis.";
+
     const runStage = async (stage: number, systemMsg: string, userMsg: string, streaming = true): Promise<string> => {
       const label = getStageName(stage);
       sendEvent({ type: "stage_start", stage, label, totalStages: 12 });
@@ -302,7 +346,7 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
     // ─── STAGE 1: Classification & Typed Signal Extraction ────────────────────
     sendEvent({ type: "progress", stage: 1, message: "Stage 1/12: Classification & Typed Signal Extraction" });
     const stage1 = await runStage(1,
-      `You are Apphia. ${profileSuffix}`,
+      `You are Apphia. ${profileSuffix}${retrievedContextBlock}`,
       `Case: "${caseItem.title}"
 Description: ${caseItem.description || "No description"}
 Priority: ${caseItem.priority || "medium"}
@@ -343,19 +387,16 @@ Stage 1 — Classification & Typed Signal Extraction:
 
     sendEvent({ type: "quick_fix_gate", passed: false, confidence: quickFixConfidence, message: "Quick-fix confidence insufficient. Continuing full pipeline." });
 
-    // ─── STAGE 3: KB Semantic Retrieval & Evidence Correlation ────────────────
-    sendEvent({ type: "progress", stage: 3, message: "Stage 3/12: KB Semantic Retrieval & Evidence Correlation" });
+    // ─── STAGE 3: KB Evidence Correlation (uses pre-retrieved knowledge) ──────
+    sendEvent({ type: "progress", stage: 3, message: "Stage 3/12: KB Evidence Correlation" });
     const label3 = getStageName(3);
     sendEvent({ type: "stage_start", stage: 3, label: label3, totalStages: 12 });
 
-    const kbResults = await kbSemanticSearch(queryText, undefined, 5);
-    ctx.kbEvidence = kbResults;
-
-    const kbSummary = kbResults.length > 0
-      ? kbResults.map((r, i) => `[${i + 1}] ${r.title} (${r.domain}/${r.subdomain || "general"}) — confidence: ${r.confidence.toFixed(1)}%\nResolution hints: ${(r.resolutionSteps || []).slice(0, 2).join("; ")}`).join("\n\n")
+    const kbSummary = ctx.kbEvidence.length > 0
+      ? ctx.kbEvidence.map((r, i) => `[${i + 1}] ${r.title} (${r.domain}/${r.subdomain || "general"}) — confidence: ${r.confidence.toFixed(1)}%\nResolution hints: ${(r.resolutionSteps || []).slice(0, 2).join("; ")}`).join("\n\n")
       : "No KB matches found. Proceeding with first-principles analysis.";
 
-    sendEvent({ type: "kb_evidence", data: { count: kbResults.length, topMatch: kbResults[0]?.title || null, topConfidence: kbResults[0]?.confidence || 0 } });
+    sendEvent({ type: "kb_evidence", data: { count: ctx.kbEvidence.length, topMatch: ctx.kbEvidence[0]?.title || null, topConfidence: ctx.kbEvidence[0]?.confidence || 0 } });
     sendEvent({ type: "stage_content", stage: 3, content: kbSummary });
     sendEvent({ type: "stage_complete", stage: 3, label: label3, tokenCount: kbSummary.length });
     ctx.tierOutputs.push(kbSummary);
@@ -601,6 +642,7 @@ async function finalizePipeline(
     rootCauses: ctx.rootCauses,
     confidenceScore: summary.confidenceScore || 75,
     costTokens: ctx.totalTokens,
+    udoGraph: { ...ctx.udoGraph, citedKbNodeIds: ctx.kbEvidence.map(k => k.id) },
   }).where(eq(diagnosticAttemptsTable.id, attemptId));
 
   await trackEvent({
@@ -612,6 +654,16 @@ async function finalizePipeline(
 
   if (ctx.kbEvidence[0]) {
     await updateErrorPattern(ctx.kbEvidence[0].domain, id, ctx.kbEvidence[0].externalId, summary.confidenceScore);
+  }
+
+  if (ctx.kbEvidence.length > 0) {
+    const citedIds = ctx.kbEvidence.map(k => k.id);
+    try {
+      await pool.query(
+        `UPDATE knowledge_nodes SET confidence_score = LEAST(1.0, confidence_score + 0.01) WHERE id = ANY($1::int[])`,
+        [citedIds]
+      );
+    } catch { /* non-critical */ }
   }
 
   sendEvent({

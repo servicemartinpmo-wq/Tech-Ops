@@ -1,12 +1,12 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useGetCase, useUpdateCase } from "@workspace/api-client-react";
-import { useSseDiagnostic } from "@/hooks/use-sse-diagnostic";
+import { useSseDiagnostic, type KnowledgeSource } from "@/hooks/use-sse-diagnostic";
 import { useApiBase } from "@/hooks/use-api-base";
 import { Card, Button, Badge } from "@/components/ui";
 import {
   ArrowLeft, Play, Terminal, CheckCircle2, AlertTriangle, ShieldAlert, Brain,
   GitBranch, ThumbsUp, ThumbsDown, Zap, AlertCircle, ChevronRight, BookOpen,
-  ArrowRight, Cpu, Monitor, X, Clock, FileText, ImageIcon, Paperclip
+  ArrowRight, Cpu, Monitor, X, Clock, FileText, ImageIcon, Paperclip, Database, ChevronDown
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -328,6 +328,61 @@ function DecisionTreePanel({ tree, udi, caseId, apiBase }: { tree: DecisionTree;
   );
 }
 
+function KnowledgeSourcesPanel({ sources }: { sources: KnowledgeSource[] }) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <Card className="p-0 overflow-hidden border-emerald-200 bg-gradient-to-r from-emerald-50/50 to-teal-50/50">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 p-4 text-left hover:bg-emerald-50/50 transition-colors"
+      >
+        <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-sm shrink-0">
+          <Database className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-display font-bold text-slate-900">Knowledge Sources Consulted</h3>
+          <p className="text-[11px] text-slate-500">{sources.length} node{sources.length !== 1 ? "s" : ""} retrieved from the knowledge graph via cosine similarity</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-2">
+              {sources.map((source, i) => (
+                <div key={source.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-emerald-100">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-600 border border-emerald-200 shrink-0 mt-0.5">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-900">{source.title}</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">{source.externalId}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-slate-500">{source.domain}{source.subdomain ? ` / ${source.subdomain}` : ""}</span>
+                      <span className="text-[10px] text-slate-300">|</span>
+                      <span className={`text-xs font-medium ${source.confidenceScore >= 75 ? "text-emerald-600" : source.confidenceScore >= 50 ? "text-amber-600" : "text-slate-500"}`}>
+                        {source.confidenceScore}% match
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+}
+
 export default function CaseDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
@@ -336,7 +391,7 @@ export default function CaseDetail() {
 
   const { data: diagnosticCase, isLoading, refetch } = useGetCase(caseId);
   const { mutate: updateCase } = useUpdateCase();
-  const { runDiagnostic, isRunning, logs } = useSseDiagnostic(caseId);
+  const { runDiagnostic, isRunning, logs, knowledgeSources } = useSseDiagnostic(caseId);
   const logEndRef = useRef<HTMLDivElement>(null);
   const [decisionData, setDecisionData] = useState<{ udi: UDI; tree: DecisionTree } | null>(null);
   const [loadingDecision, setLoadingDecision] = useState(false);
@@ -412,6 +467,14 @@ export default function CaseDetail() {
       </motion.div>
 
       <AnimatePresence>
+        {knowledgeSources.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            <KnowledgeSourcesPanel sources={knowledgeSources} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {decisionData && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <Card className="p-5 border-violet-100 bg-violet-50/50">
@@ -446,6 +509,7 @@ export default function CaseDetail() {
                       className={`flex gap-3 ${log.type === 'error' ? 'text-red-400' : log.type === 'system_error' ? 'text-amber-400' : log.type === 'complete' ? 'text-emerald-400' : ''}`}>
                       <span className="text-slate-700 select-none">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
                       <div className="flex-1 break-words">
+                        {log.type === 'knowledge_sources' && <span className="text-emerald-400 mr-2">KB RETRIEVAL:</span>}
                         {log.type === 'signal' && <span className="text-sky-400 mr-2">EXTRACT:</span>}
                         {log.type === 'udo_path' && <span className="text-violet-400 mr-2">UDO TRAVERSAL:</span>}
                         {log.type === 'system_error' && <span className="text-amber-400 mr-2">⚠ PLATFORM ERROR:</span>}

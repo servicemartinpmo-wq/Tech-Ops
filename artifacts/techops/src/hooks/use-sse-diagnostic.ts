@@ -1,8 +1,17 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+export interface KnowledgeSource {
+  id: number;
+  externalId: string;
+  title: string;
+  domain: string;
+  subdomain: string | null;
+  confidenceScore: number;
+}
+
 export interface DiagnosticEvent {
-  type: "progress" | "signal" | "udo_path" | "complete" | "error" | "system_error";
+  type: "progress" | "signal" | "udo_path" | "complete" | "error" | "system_error" | "knowledge_sources";
   message?: string;
   data?: Record<string, unknown>;
   isSystemError?: boolean;
@@ -12,11 +21,13 @@ export interface DiagnosticEvent {
 export function useSseDiagnostic(caseId: number) {
   const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<DiagnosticEvent[]>([]);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
   const queryClient = useQueryClient();
 
   const runDiagnostic = useCallback(async () => {
     setIsRunning(true);
     setLogs([{ type: "progress", message: "Initializing Apphia Engine diagnostic pipeline..." }]);
+    setKnowledgeSources([]);
 
     try {
       const res = await fetch(`/api/cases/${caseId}/diagnose`, {
@@ -47,6 +58,14 @@ export function useSseDiagnostic(caseId: number) {
               if (data.done || data.type === 'complete') {
                 done = true;
                 setLogs((prev) => [...prev, { type: "complete", message: "Diagnostic complete." }]);
+              } else if (data.type === 'knowledge_sources') {
+                const sources = (data.data || []) as KnowledgeSource[];
+                setKnowledgeSources(sources);
+                setLogs((prev) => [...prev, {
+                  type: "knowledge_sources",
+                  message: `Retrieved ${sources.length} knowledge source${sources.length !== 1 ? "s" : ""} from the knowledge graph.`,
+                  data: data.data,
+                }]);
               } else if (data.type === 'system_error') {
                 done = true;
                 setLogs((prev) => [...prev, {
@@ -73,7 +92,7 @@ export function useSseDiagnostic(caseId: number) {
     }
   }, [caseId, queryClient]);
 
-  const clearLogs = () => setLogs([]);
+  const clearLogs = () => { setLogs([]); setKnowledgeSources([]); };
 
-  return { runDiagnostic, isRunning, logs, clearLogs };
+  return { runDiagnostic, isRunning, logs, knowledgeSources, clearLogs };
 }
