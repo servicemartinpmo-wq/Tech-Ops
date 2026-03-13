@@ -5,8 +5,9 @@ import { Card, Button, Input } from "@/components/ui";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Send, X, FileText, ImageIcon, Clock, AlertTriangle } from "lucide-react";
-import { motion } from "framer-motion";
+import { Upload, Send, X, FileText, ImageIcon, Clock, AlertTriangle, ChevronDown, Monitor, Server, Cpu } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useApiBase } from "@/hooks/use-api-base";
 
 interface FileEntry {
   name: string;
@@ -18,6 +19,25 @@ interface FileEntry {
 const SLA_HOURS: Record<string, number> = { critical: 4, high: 8, medium: 24, low: 72 };
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp", "text/plain", "application/json", "text/csv"];
+
+const TECH_STACK_OPTIONS = [
+  "Node.js", "Python", "Java", "Go", "Ruby", ".NET", "PHP", "Rust",
+  "Docker", "Kubernetes", "Terraform", "Ansible",
+  "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+  "React", "Vue", "Angular", "Next.js",
+  "AWS", "Azure", "GCP", "Cloudflare",
+  "Nginx", "Apache", "HAProxy",
+  "Kafka", "RabbitMQ", "Jenkins", "GitHub Actions", "GitLab CI",
+];
+
+const ACTIVE_SERVICE_OPTIONS = [
+  "Web Server", "API Gateway", "Load Balancer", "CDN",
+  "Database", "Cache", "Message Queue", "Search Engine",
+  "Auth Service", "Email Service", "Payment Gateway",
+  "Monitoring", "Logging", "CI/CD Pipeline",
+  "DNS", "SSL/TLS", "Firewall", "VPN",
+  "Object Storage", "File System", "Backup Service",
+];
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,6 +57,7 @@ function formatBytes(bytes: number) {
 export default function SubmitCase() {
   const [, setLocation] = useLocation();
   const { mutate: createCase, isPending } = useCreateCase();
+  const apiBase = useApiBase();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
@@ -46,6 +67,13 @@ export default function SubmitCase() {
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showEnvDetails, setShowEnvDetails] = useState(false);
+  const [osInfo, setOsInfo] = useState("");
+  const [techStack, setTechStack] = useState<string[]>([]);
+  const [activeServices, setActiveServices] = useState<string[]>([]);
+  const [customTech, setCustomTech] = useState("");
+  const [customService, setCustomService] = useState("");
 
   const processFiles = useCallback(async (incoming: FileList | File[]) => {
     setFileError(null);
@@ -84,7 +112,33 @@ export default function SubmitCase() {
 
   const removeFile = (idx: number) => setFiles(prev => prev.filter((_, i) => i !== idx));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const toggleTechStack = (item: string) => {
+    setTechStack(prev => prev.includes(item) ? prev.filter(t => t !== item) : [...prev, item]);
+  };
+
+  const addCustomTech = () => {
+    const val = customTech.trim();
+    if (val && !techStack.includes(val)) {
+      setTechStack(prev => [...prev, val]);
+      setCustomTech("");
+    }
+  };
+
+  const toggleActiveService = (item: string) => {
+    setActiveServices(prev => prev.includes(item) ? prev.filter(s => s !== item) : [...prev, item]);
+  };
+
+  const addCustomService = () => {
+    const val = customService.trim();
+    if (val && !activeServices.includes(val)) {
+      setActiveServices(prev => [...prev, val]);
+      setCustomService("");
+    }
+  };
+
+  const hasEnvironmentData = osInfo || techStack.length > 0 || activeServices.length > 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     createCase(
@@ -96,7 +150,26 @@ export default function SubmitCase() {
           attachments: files.length > 0 ? files : undefined,
         }
       },
-      { onSuccess: (data) => { setLocation(`/cases/${data.id}`); } }
+      {
+        onSuccess: async (data) => {
+          if (hasEnvironmentData) {
+            try {
+              await fetch(`${apiBase}/api/cases/${data.id}/environment`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  osInfo: osInfo || undefined,
+                  techStack: techStack.length > 0 ? techStack : undefined,
+                  activeServices: activeServices.length > 0 ? activeServices : undefined,
+                  environment: environment || undefined,
+                }),
+              });
+            } catch {}
+          }
+          setLocation(`/cases/${data.id}`);
+        }
+      }
     );
   };
 
@@ -190,6 +263,159 @@ export default function SubmitCase() {
                   <AlertTriangle className="w-3 h-3" /> Email notification will be sent
                 </span>
               )}
+            </div>
+
+            {/* Environment Details (optional, collapsible) */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowEnvDetails(!showEnvDetails)}
+                className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-xl bg-indigo-500 flex items-center justify-center shadow-sm shrink-0">
+                  <Monitor className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-display font-bold text-slate-900">Environment Details</h3>
+                  <p className="text-[11px] text-slate-500">
+                    {hasEnvironmentData
+                      ? `${[osInfo, techStack.length > 0 ? `${techStack.length} tech` : "", activeServices.length > 0 ? `${activeServices.length} services` : ""].filter(Boolean).join(" · ")}`
+                      : "Optional — helps Apphia provide environment-specific recommendations"}
+                  </p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showEnvDetails ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {showEnvDetails && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 space-y-4 border-t border-slate-100 pt-4">
+                      <div className="space-y-2">
+                        <Label className="text-slate-600 font-medium flex items-center gap-1.5">
+                          <Cpu className="w-3.5 h-3.5" /> Operating System
+                        </Label>
+                        <Select value={osInfo} onValueChange={setOsInfo}>
+                          <SelectTrigger><SelectValue placeholder="Select OS" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Linux (Ubuntu)">Linux (Ubuntu)</SelectItem>
+                            <SelectItem value="Linux (CentOS/RHEL)">Linux (CentOS/RHEL)</SelectItem>
+                            <SelectItem value="Linux (Debian)">Linux (Debian)</SelectItem>
+                            <SelectItem value="Linux (Alpine)">Linux (Alpine)</SelectItem>
+                            <SelectItem value="Linux (Other)">Linux (Other)</SelectItem>
+                            <SelectItem value="macOS">macOS</SelectItem>
+                            <SelectItem value="Windows Server">Windows Server</SelectItem>
+                            <SelectItem value="Windows">Windows</SelectItem>
+                            <SelectItem value="Cloud (Containerized)">Cloud (Containerized)</SelectItem>
+                            <SelectItem value="Cloud (Serverless)">Cloud (Serverless)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-slate-600 font-medium flex items-center gap-1.5">
+                          <Server className="w-3.5 h-3.5" /> Tech Stack
+                        </Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {TECH_STACK_OPTIONS.map(tech => (
+                            <button
+                              key={tech}
+                              type="button"
+                              onClick={() => toggleTechStack(tech)}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                                techStack.includes(tech)
+                                  ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                                  : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                              }`}
+                            >
+                              {tech}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add custom technology..."
+                            value={customTech}
+                            onChange={e => setCustomTech(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomTech(); } }}
+                            className="text-xs h-8"
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={addCustomTech} className="h-8 text-xs shrink-0">
+                            Add
+                          </Button>
+                        </div>
+                        {techStack.filter(t => !TECH_STACK_OPTIONS.includes(t)).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {techStack.filter(t => !TECH_STACK_OPTIONS.includes(t)).map(tech => (
+                              <span
+                                key={tech}
+                                className="text-xs px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-300 text-indigo-700 font-medium flex items-center gap-1"
+                              >
+                                {tech}
+                                <button type="button" onClick={() => toggleTechStack(tech)} className="hover:text-red-500">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-slate-600 font-medium flex items-center gap-1.5">
+                          <Server className="w-3.5 h-3.5" /> Active Services
+                        </Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ACTIVE_SERVICE_OPTIONS.map(svc => (
+                            <button
+                              key={svc}
+                              type="button"
+                              onClick={() => toggleActiveService(svc)}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                                activeServices.includes(svc)
+                                  ? "bg-teal-50 border-teal-300 text-teal-700 font-medium"
+                                  : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                              }`}
+                            >
+                              {svc}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add custom service..."
+                            value={customService}
+                            onChange={e => setCustomService(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomService(); } }}
+                            className="text-xs h-8"
+                          />
+                          <Button type="button" variant="outline" size="sm" onClick={addCustomService} className="h-8 text-xs shrink-0">
+                            Add
+                          </Button>
+                        </div>
+                        {activeServices.filter(s => !ACTIVE_SERVICE_OPTIONS.includes(s)).length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {activeServices.filter(s => !ACTIVE_SERVICE_OPTIONS.includes(s)).map(svc => (
+                              <span
+                                key={svc}
+                                className="text-xs px-2.5 py-1 rounded-full bg-teal-50 border border-teal-300 text-teal-700 font-medium flex items-center gap-1"
+                              >
+                                {svc}
+                                <button type="button" onClick={() => toggleActiveService(svc)} className="hover:text-red-500">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* File attachments */}

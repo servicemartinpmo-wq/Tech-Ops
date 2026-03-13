@@ -9,7 +9,7 @@ router.post("/environment/snapshot", async (req, res: Response): Promise<void> =
   const authReq = req as unknown as AuthenticatedRequest;
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
-  const { label, caseId, environment, region, cloudProvider, topology, services, metrics, flags, rawContext } = req.body;
+  const { label, caseId, environment, region, cloudProvider, topology, services, metrics, flags, rawContext, osInfo, techStack, activeServices, recentErrors } = req.body;
   if (!label) { res.status(400).json({ error: "label is required" }); return; }
 
   const connectors = await db.select().from(connectorHealthTable)
@@ -26,6 +26,10 @@ router.post("/environment/snapshot", async (req, res: Response): Promise<void> =
     environment: environment || "production",
     region: region || null,
     cloudProvider: cloudProvider || null,
+    osInfo: osInfo || null,
+    techStack: Array.isArray(techStack) ? techStack : null,
+    activeServices: Array.isArray(activeServices) ? activeServices : null,
+    recentErrors: Array.isArray(recentErrors) ? recentErrors : null,
     topology: topology || null,
     services: services || null,
     connectorStatuses,

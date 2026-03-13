@@ -3,7 +3,7 @@ import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import {
   db, pool, casesTable, diagnosticAttemptsTable, usersTable,
   analyticsEventsTable, errorPatternsTable, escalationHistoryTable,
-  knowledgeNodesTable,
+  knowledgeNodesTable, environmentSnapshotsTable,
 } from "@workspace/db";
 import { CreateCaseBody, UpdateCaseBody, RunBatchDiagnosticsBody } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -315,6 +315,33 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
         ).join("\n")
       : "\n\nNo knowledge graph matches found. Proceed with first-principles analysis.";
 
+    // ─── PRE-STAGE: Environment Snapshot Retrieval ───────────────────────────
+    let environmentBlock = "";
+    try {
+      const [envSnapshot] = await db.select().from(environmentSnapshotsTable)
+        .where(and(eq(environmentSnapshotsTable.caseId, id), eq(environmentSnapshotsTable.userId, authReq.user.id)))
+        .orderBy(desc(environmentSnapshotsTable.createdAt))
+        .limit(1);
+      if (envSnapshot) {
+        const parts: string[] = [];
+        if (envSnapshot.osInfo) parts.push(`OS: ${envSnapshot.osInfo}`);
+        if (envSnapshot.environment) parts.push(`Environment: ${envSnapshot.environment}`);
+        if (envSnapshot.cloudProvider) parts.push(`Cloud Provider: ${envSnapshot.cloudProvider}`);
+        if (envSnapshot.region) parts.push(`Region: ${envSnapshot.region}`);
+        if (envSnapshot.techStack && (envSnapshot.techStack as string[]).length > 0) parts.push(`Tech Stack: ${(envSnapshot.techStack as string[]).join(", ")}`);
+        if (envSnapshot.activeServices && (envSnapshot.activeServices as string[]).length > 0) parts.push(`Active Services: ${(envSnapshot.activeServices as string[]).join(", ")}`);
+        if (envSnapshot.recentErrors && (envSnapshot.recentErrors as Array<{ message: string; timestamp: string }>).length > 0) {
+          const errors = envSnapshot.recentErrors as Array<{ message: string; timestamp: string }>;
+          parts.push(`Recent Errors:\n${errors.slice(0, 5).map(e => `  - ${e.message} (${e.timestamp})`).join("\n")}`);
+        }
+        if (parts.length > 0) {
+          environmentBlock = `\n\nEnvironment context (user-provided snapshot):\n${parts.join("\n")}`;
+          ctx.environmentContext = parts.join("; ");
+          sendEvent({ type: "environment_context", data: { osInfo: envSnapshot.osInfo, techStack: envSnapshot.techStack, activeServices: envSnapshot.activeServices, environment: envSnapshot.environment, cloudProvider: envSnapshot.cloudProvider } });
+        }
+      }
+    } catch { /* non-critical */ }
+
     const runStage = async (stage: number, systemMsg: string, userMsg: string, streaming = true): Promise<string> => {
       const label = getStageName(stage);
       sendEvent({ type: "stage_start", stage, label, totalStages: 12 });
@@ -353,7 +380,7 @@ router.post("/cases/:id/diagnose", async (req, res: Response): Promise<void> => 
     // ─── STAGE 1: Classification & Typed Signal Extraction ────────────────────
     sendEvent({ type: "progress", stage: 1, message: "Stage 1/12: Classification & Typed Signal Extraction" });
     const stage1 = await runStage(1,
-      `You are Apphia. ${profileSuffix}${retrievedContextBlock}`,
+      `You are Apphia. ${profileSuffix}${retrievedContextBlock}${environmentBlock}`,
       `Case: "${caseItem.title}"
 Description: ${caseItem.description || "No description"}
 Priority: ${caseItem.priority || "medium"}
@@ -778,5 +805,50 @@ function getStageName(stage: number): string {
   };
   return names[stage] || `Stage ${stage}`;
 }
+
+router.get("/cases/:id/environment", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const caseId = parseInt(req.params.id, 10);
+
+  const [caseItem] = await db.select({ id: casesTable.id }).from(casesTable)
+    .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, authReq.user.id)));
+  if (!caseItem) { res.status(404).json({ error: "Case not found" }); return; }
+
+  const [snapshot] = await db.select().from(environmentSnapshotsTable)
+    .where(and(eq(environmentSnapshotsTable.caseId, caseId), eq(environmentSnapshotsTable.userId, authReq.user.id)))
+    .orderBy(desc(environmentSnapshotsTable.createdAt))
+    .limit(1);
+
+  if (!snapshot) { res.json(null); return; }
+  res.json(snapshot);
+});
+
+router.post("/cases/:id/environment", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const caseId = parseInt(req.params.id, 10);
+
+  const [caseItem] = await db.select({ id: casesTable.id }).from(casesTable)
+    .where(and(eq(casesTable.id, caseId), eq(casesTable.userId, authReq.user.id)));
+  if (!caseItem) { res.status(404).json({ error: "Case not found" }); return; }
+
+  const { osInfo, techStack, activeServices, recentErrors, environment, cloudProvider, region } = req.body;
+
+  const [snapshot] = await db.insert(environmentSnapshotsTable).values({
+    userId: authReq.user.id,
+    caseId,
+    label: `Case #${caseId} environment`,
+    osInfo: osInfo || null,
+    techStack: Array.isArray(techStack) ? techStack : null,
+    activeServices: Array.isArray(activeServices) ? activeServices : null,
+    recentErrors: Array.isArray(recentErrors) ? recentErrors : null,
+    environment: environment || "production",
+    cloudProvider: cloudProvider || null,
+    region: region || null,
+  }).returning();
+
+  res.status(201).json(snapshot);
+});
 
 export default router;

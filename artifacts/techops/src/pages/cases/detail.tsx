@@ -383,6 +383,120 @@ function KnowledgeSourcesPanel({ sources }: { sources: KnowledgeSource[] }) {
   );
 }
 
+interface EnvironmentSnapshot {
+  id: number;
+  osInfo: string | null;
+  techStack: string[] | null;
+  activeServices: string[] | null;
+  recentErrors: Array<{ message: string; timestamp: string }> | null;
+  environment: string;
+  cloudProvider: string | null;
+  region: string | null;
+  createdAt: string;
+}
+
+function EnvironmentPanel({ snapshot }: { snapshot: EnvironmentSnapshot }) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <Card className="p-0 overflow-hidden border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-violet-50/50">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 p-4 text-left hover:bg-indigo-50/50 transition-colors"
+      >
+        <div className="w-8 h-8 rounded-xl bg-indigo-500 flex items-center justify-center shadow-sm shrink-0">
+          <Monitor className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-display font-bold text-slate-900">Environment Context</h3>
+          <p className="text-[11px] text-slate-500">
+            {[snapshot.osInfo, snapshot.environment, snapshot.techStack?.length ? `${snapshot.techStack.length} technologies` : null].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {snapshot.osInfo && (
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1">Operating System</p>
+                    <p className="text-sm font-semibold text-slate-900">{snapshot.osInfo}</p>
+                  </div>
+                )}
+                <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1">Environment</p>
+                  <p className="text-sm font-semibold text-slate-900 capitalize">{snapshot.environment}</p>
+                </div>
+                {snapshot.cloudProvider && (
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1">Cloud Provider</p>
+                    <p className="text-sm font-semibold text-slate-900">{snapshot.cloudProvider}</p>
+                  </div>
+                )}
+                {snapshot.region && (
+                  <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-1">Region</p>
+                    <p className="text-sm font-semibold text-slate-900">{snapshot.region}</p>
+                  </div>
+                )}
+              </div>
+
+              {snapshot.techStack && snapshot.techStack.length > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-2">Tech Stack</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {snapshot.techStack.map(tech => (
+                      <span key={tech} className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 font-medium">
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {snapshot.activeServices && snapshot.activeServices.length > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-indigo-100">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-medium mb-2">Active Services</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {snapshot.activeServices.map(svc => (
+                      <span key={svc} className="text-xs px-2 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-700 font-medium">
+                        {svc}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {snapshot.recentErrors && snapshot.recentErrors.length > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-red-100">
+                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-medium mb-2">Recent Errors</p>
+                  <div className="space-y-1.5">
+                    {snapshot.recentErrors.slice(0, 5).map((err, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs">
+                        <AlertTriangle className="w-3 h-3 text-red-400 mt-0.5 shrink-0" />
+                        <span className="text-slate-700 flex-1">{err.message}</span>
+                        <span className="text-slate-400 text-[10px] shrink-0">{err.timestamp}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Card>
+  );
+}
+
 export default function CaseDetail() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
@@ -396,6 +510,15 @@ export default function CaseDetail() {
   const [decisionData, setDecisionData] = useState<{ udi: UDI; tree: DecisionTree } | null>(null);
   const [loadingDecision, setLoadingDecision] = useState(false);
   const [autoMode, setAutoMode] = useState(false);
+  const [envSnapshot, setEnvSnapshot] = useState<EnvironmentSnapshot | null>(null);
+
+  useEffect(() => {
+    if (!caseId) return;
+    fetch(`${apiBase}/api/cases/${caseId}/environment`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { if (data && data.id) setEnvSnapshot(data); })
+      .catch(() => {});
+  }, [caseId, apiBase]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -465,6 +588,12 @@ export default function CaseDetail() {
           isRunning={isRunning}
         />
       </motion.div>
+
+      {envSnapshot && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <EnvironmentPanel snapshot={envSnapshot} />
+        </motion.div>
+      )}
 
       <AnimatePresence>
         {knowledgeSources.length > 0 && (

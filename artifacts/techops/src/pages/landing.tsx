@@ -160,9 +160,6 @@ function LightHero({ onLogin }: { onLogin: () => void }) {
         <div className="flex items-center gap-6">
           <a href="#features" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors hidden md:block">Features</a>
           <a href="#pricing" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors hidden md:block">Pricing</a>
-          <Button onClick={onLogin} variant="outline" className="border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
-            Sign In
-          </Button>
           <Button onClick={onLogin} className="bg-slate-900 hover:bg-slate-800 text-white shadow-sm px-5">
             Get Started
           </Button>
