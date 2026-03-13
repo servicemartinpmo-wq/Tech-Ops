@@ -3,6 +3,7 @@ import { eq, desc, and, sql, gte } from "drizzle-orm";
 import {
   db, pool, casesTable, analyticsEventsTable, errorPatternsTable,
   diagnosticAttemptsTable, escalationHistoryTable, connectorHealthHistoryTable,
+  knowledgeNodesTable,
 } from "@workspace/db";
 import type { AuthenticatedRequest } from "../types";
 import { requireFeature } from "../middleware/tierGating";
@@ -98,7 +99,8 @@ router.get("/analytics/connector-health", requireFeature(ANALYTICS), async (req,
   if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
 
   const { days, since } = parseDays(req.query.days as string);
-  const limitPerConnector = Math.min(parseInt((req.query.limit as string) || "50", 10), 200);
+  const rawLimit = parseInt((req.query.limit as string) || "50", 10);
+  const limitPerConnector = Math.min(isNaN(rawLimit) ? 50 : rawLimit, 200);
 
   const result = await pool.query(
     `SELECT connector_name, status, latency_ms, checked_at
@@ -249,62 +251,89 @@ router.get("/analytics/error-categories", requireFeature(ANALYTICS), async (req,
 
   const { days, since } = parseDays(req.query.days as string);
 
-  // Domain classification: match case titles against known domain keywords
-  const DOMAIN_KEYWORDS: Array<{ domain: string; label: string; keywords: string[] }> = [
-    { domain: "connectivity",   label: "Connectivity",    keywords: ["network", "connect", "timeout", "dns", "socket", "ping", "firewall", "vpn", "proxy", "port"] },
-    { domain: "auth",           label: "Authentication",  keywords: ["login", "auth", "password", "token", "session", "permission", "401", "403", "access denied", "credential"] },
-    { domain: "performance",    label: "Performance",     keywords: ["slow", "latency", "memory", "cpu", "high load", "bottleneck", "response time", "leak", "throughput"] },
-    { domain: "database",       label: "Database",        keywords: ["database", "postgres", "mysql", "sql", "query", "deadlock", "migration", "db error", "connection pool"] },
-    { domain: "deployment",     label: "Deployment",      keywords: ["deploy", "container", "docker", "kubernetes", "pod", "crash", "restart", "build", "pipeline", "ci/cd"] },
-    { domain: "api",            label: "API / Integration", keywords: ["api", "endpoint", "rest", "webhook", "integration", "payload", "response", "request", "http", "500"] },
-    { domain: "storage",        label: "Storage",         keywords: ["disk", "storage", "file", "bucket", "upload", "s3", "volume", "space", "quota"] },
-    { domain: "security",       label: "Security",        keywords: ["security", "vulnerability", "breach", "exploit", "malware", "attack", "ssl", "certificate", "tls"] },
-    { domain: "configuration",  label: "Configuration",   keywords: ["config", "environment", "env var", "setting", "misconfigured", "yaml", "json", "toml"] },
-    { domain: "other",          label: "Other",           keywords: [] },
-  ];
+  // Keyword synonyms for well-known KB domains (used to broaden case-title matching)
+  const DOMAIN_SYNONYMS: Record<string, string[]> = {
+    connectivity:  ["network", "connect", "timeout", "dns", "socket", "ping", "firewall", "vpn", "proxy", "port"],
+    auth:          ["login", "auth", "password", "token", "session", "permission", "401", "403", "access denied", "credential"],
+    performance:   ["slow", "latency", "memory", "cpu", "high load", "bottleneck", "response time", "leak", "throughput"],
+    database:      ["database", "postgres", "mysql", "sql", "query", "deadlock", "migration", "db error", "connection pool"],
+    deployment:    ["deploy", "container", "docker", "kubernetes", "pod", "crash", "restart", "build", "pipeline", "ci/cd"],
+    api:           ["api", "endpoint", "rest", "webhook", "integration", "payload", "response", "request", "http"],
+    storage:       ["disk", "storage", "file", "bucket", "upload", "s3", "volume", "space", "quota"],
+    security:      ["security", "vulnerability", "breach", "exploit", "malware", "attack", "ssl", "certificate", "tls"],
+    configuration: ["config", "environment", "env var", "setting", "misconfigured", "yaml", "json", "toml"],
+  };
 
-  // Fetch case titles and descriptions in the period
+  // Pull canonical domains from the knowledge base
+  const kbDomainsRaw = await db
+    .selectDistinct({ domain: knowledgeNodesTable.domain })
+    .from(knowledgeNodesTable)
+    .orderBy(knowledgeNodesTable.domain);
+
+  // Build classification list: KB domains first, fall back to DOMAIN_SYNONYMS keys for any missing
+  const seenDomains = new Set<string>();
+  const classifiers: Array<{ domain: string; label: string; keywords: string[] }> = [];
+  for (const { domain } of kbDomainsRaw) {
+    if (!domain || seenDomains.has(domain)) continue;
+    seenDomains.add(domain);
+    const synonyms = DOMAIN_SYNONYMS[domain.toLowerCase()] ?? [];
+    classifiers.push({
+      domain,
+      label: domain.charAt(0).toUpperCase() + domain.slice(1).replace(/_/g, " "),
+      keywords: [domain.toLowerCase(), ...synonyms],
+    });
+  }
+  // Supplement with any synonym-only domains not already represented by KB
+  for (const [dom, syns] of Object.entries(DOMAIN_SYNONYMS)) {
+    if (!seenDomains.has(dom)) {
+      classifiers.push({
+        domain: dom,
+        label: dom.charAt(0).toUpperCase() + dom.slice(1).replace(/_/g, " "),
+        keywords: [dom, ...syns],
+      });
+    }
+  }
+
+  // Fetch case titles/descriptions in the period for this user
   const cases = await pool.query(
-    `SELECT title, description FROM cases
-     WHERE user_id = $1 AND created_at >= $2`,
+    `SELECT title, description FROM cases WHERE user_id = $1 AND created_at >= $2`,
     [authReq.user.id, since.toISOString()]
   );
 
   const domainCounts: Record<string, number> = {};
-  for (const def of DOMAIN_KEYWORDS) { domainCounts[def.domain] = 0; }
+  for (const clf of classifiers) { domainCounts[clf.domain] = 0; }
+  let unmatched = 0;
 
   for (const row of cases.rows as Array<{ title: string; description?: string }>) {
     const text = `${row.title || ""} ${row.description || ""}`.toLowerCase();
     let matched = false;
-    for (const def of DOMAIN_KEYWORDS) {
-      if (def.keywords.length === 0) continue;
-      if (def.keywords.some(kw => text.includes(kw))) {
-        domainCounts[def.domain]++;
+    for (const clf of classifiers) {
+      if (clf.keywords.some(kw => text.includes(kw))) {
+        domainCounts[clf.domain]++;
         matched = true;
         break;
       }
     }
-    if (!matched) domainCounts["other"]++;
+    if (!matched) unmatched++;
   }
 
-  const categories = DOMAIN_KEYWORDS
-    .map(def => ({
-      domain:  def.domain,
-      label:   def.label,
-      count:   domainCounts[def.domain] || 0,
-      percentage: cases.rows.length > 0
-        ? Math.round(((domainCounts[def.domain] || 0) / cases.rows.length) * 100)
-        : 0,
+  const total = cases.rows.length;
+  const categories = classifiers
+    .map(clf => ({
+      domain:     clf.domain,
+      label:      clf.label,
+      count:      domainCounts[clf.domain] || 0,
+      percentage: total > 0 ? Math.round(((domainCounts[clf.domain] || 0) / total) * 100) : 0,
     }))
     .filter(c => c.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  res.json({
-    period:     { days, since: since.toISOString() },
-    totalCases: cases.rows.length,
-    categories,
-  });
+  if (unmatched > 0) {
+    categories.push({ domain: "other", label: "Other", count: unmatched, percentage: total > 0 ? Math.round((unmatched / total) * 100) : 0 });
+  }
+
+  res.json({ period: { days, since: since.toISOString() }, totalCases: total, kbDomainCount: kbDomainsRaw.length, categories });
 });
 
 router.get("/analytics/pipeline-performance", requireFeature(ANALYTICS), async (req, res: Response): Promise<void> => {
