@@ -323,6 +323,85 @@ router.post("/batches/:id/cancel", async (req, res: Response): Promise<void> => 
   res.json(updated);
 });
 
+router.post("/batches/:id/cases/:caseId/pause", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const batchId = parseInt(req.params.id, 10);
+  const caseId = parseInt(req.params.caseId, 10);
+
+  const [batch] = await db.select().from(batchesTable)
+    .where(and(eq(batchesTable.id, batchId), eq(batchesTable.userId, authReq.user.id)));
+  if (!batch) { res.status(404).json({ error: "Batch not found" }); return; }
+
+  const [updated] = await db.update(batchCasesTable)
+    .set({ status: "paused" })
+    .where(and(
+      eq(batchCasesTable.batchId, batchId),
+      eq(batchCasesTable.caseId, caseId),
+      eq(batchCasesTable.status, "pending")
+    ))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Case not found or not pausable" }); return; }
+  res.json({ success: true, batchCase: updated });
+});
+
+router.post("/batches/:id/cases/:caseId/cancel", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const batchId = parseInt(req.params.id, 10);
+  const caseId = parseInt(req.params.caseId, 10);
+
+  const [batch] = await db.select().from(batchesTable)
+    .where(and(eq(batchesTable.id, batchId), eq(batchesTable.userId, authReq.user.id)));
+  if (!batch) { res.status(404).json({ error: "Batch not found" }); return; }
+
+  const [updated] = await db.update(batchCasesTable)
+    .set({ status: "cancelled", completedAt: new Date() })
+    .where(and(
+      eq(batchCasesTable.batchId, batchId),
+      eq(batchCasesTable.caseId, caseId),
+      inArray(batchCasesTable.status, ["pending", "paused"])
+    ))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Case not found or not cancellable" }); return; }
+  res.json({ success: true, batchCase: updated });
+});
+
+router.post("/batches/:id/cases/:caseId/retry", async (req, res: Response): Promise<void> => {
+  const authReq = req as unknown as AuthenticatedRequest;
+  if (!authReq.isAuthenticated()) { res.status(401).json({ error: "Not authenticated" }); return; }
+
+  const batchId = parseInt(req.params.id, 10);
+  const caseId = parseInt(req.params.caseId, 10);
+
+  const [batch] = await db.select().from(batchesTable)
+    .where(and(eq(batchesTable.id, batchId), eq(batchesTable.userId, authReq.user.id)));
+  if (!batch) { res.status(404).json({ error: "Batch not found" }); return; }
+
+  const [updated] = await db.update(batchCasesTable)
+    .set({ status: "pending", errorType: null, errorMessage: null, startedAt: null, completedAt: null })
+    .where(and(
+      eq(batchCasesTable.batchId, batchId),
+      eq(batchCasesTable.caseId, caseId),
+      inArray(batchCasesTable.status, ["failed", "system_error", "cancelled", "paused"])
+    ))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Case not found or not retriable" }); return; }
+
+  if (batch.status === "completed" || batch.status === "cancelled") {
+    await db.update(batchesTable)
+      .set({ status: "running", completedAt: null })
+      .where(eq(batchesTable.id, batchId));
+  }
+
+  res.json({ success: true, batchCase: updated });
+});
+
 async function runCaseDiagnostic(
   caseId: number,
   batchId: number,

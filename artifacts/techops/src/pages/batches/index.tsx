@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, Button, Badge } from "@/components/ui";
 import { format } from "date-fns";
-import { Layers, Play, XCircle, ChevronRight, BarChart3, AlertTriangle, RefreshCw, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Layers, Play, XCircle, ChevronRight, BarChart3, AlertTriangle, RefreshCw, CheckCircle2, Clock, Loader2, Pause, RotateCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useApiBase } from "@/hooks/use-api-base";
 
 interface BatchCase {
   caseId: number;
@@ -38,10 +39,12 @@ interface Batch {
 }
 
 export default function BatchDiagnostics() {
+  const apiBase = useApiBase();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
   const [batchProgress, setBatchProgress] = useState<Record<number, BatchProgress>>({});
+  const [caseActionsLoading, setCaseActionsLoading] = useState<Record<string, boolean>>({});
   const pollIntervals = useRef<Record<number, ReturnType<typeof setInterval>>>({});
 
   useEffect(() => {
@@ -110,7 +113,7 @@ export default function BatchDiagnostics() {
   }, [selectedBatch, pollBatchProgress, batches]);
 
   const cancelBatch = async (id: number) => {
-    const res = await fetch(`/api/batches/${id}/cancel`, { method: "POST" });
+    const res = await fetch(`${apiBase}/api/batches/${id}/cancel`, { method: "POST" });
     if (res.ok) {
       const updated = await res.json();
       setBatches((prev) => prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)));
@@ -118,6 +121,32 @@ export default function BatchDiagnostics() {
         clearInterval(pollIntervals.current[id]);
         delete pollIntervals.current[id];
       }
+    }
+  };
+
+  const caseAction = async (batchId: number, caseId: number, action: "pause" | "cancel" | "retry") => {
+    const key = `${batchId}-${caseId}-${action}`;
+    setCaseActionsLoading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(`${apiBase}/api/batches/${batchId}/cases/${caseId}/${action}`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setBatchProgress((prev) => {
+          const progress = prev[batchId];
+          if (!progress) return prev;
+          return {
+            ...prev,
+            [batchId]: {
+              ...progress,
+              cases: progress.cases.map((c) =>
+                c.caseId === caseId ? { ...c, status: data.batchCase?.status ?? c.status } : c
+              ),
+            },
+          };
+        });
+      }
+    } finally {
+      setCaseActionsLoading((prev) => ({ ...prev, [key]: false }));
     }
   };
 
@@ -137,7 +166,9 @@ export default function BatchDiagnostics() {
       case "completed": return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       case "running": return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
       case "pending": return <Clock className="w-4 h-4 text-slate-400" />;
+      case "paused": return <Pause className="w-4 h-4 text-violet-400" />;
       case "failed": return <XCircle className="w-4 h-4 text-red-500" />;
+      case "cancelled": return <XCircle className="w-4 h-4 text-slate-400" />;
       case "system_error": return <AlertTriangle className="w-4 h-4 text-amber-500" />;
       default: return <Clock className="w-4 h-4 text-slate-400" />;
     }
@@ -201,17 +232,41 @@ export default function BatchDiagnostics() {
                   {c.status === "system_error" ? "System Error" : c.status}
                 </Badge>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {c.status === "system_error" && c.errorMessage && (
-                  <span className="text-xs text-amber-500/80 max-w-[200px] truncate" title={c.errorMessage}>
+                  <span className="text-xs text-amber-500/80 max-w-[160px] truncate" title={c.errorMessage}>
                     {c.errorMessage}
                   </span>
                 )}
-                {c.status === "system_error" && (
-                  <div className="flex items-center gap-1 text-xs text-amber-500">
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Re-submittable</span>
-                  </div>
+                {c.status === "pending" && (
+                  <>
+                    <button
+                      onClick={() => caseAction(batchId, c.caseId, "pause")}
+                      disabled={caseActionsLoading[`${batchId}-${c.caseId}-pause`]}
+                      className="p-1 rounded text-slate-400 hover:text-violet-500 hover:bg-violet-50 transition-colors disabled:opacity-40"
+                      title="Pause case"
+                    >
+                      <Pause className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => caseAction(batchId, c.caseId, "cancel")}
+                      disabled={caseActionsLoading[`${batchId}-${c.caseId}-cancel`]}
+                      className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                      title="Cancel case"
+                    >
+                      <XCircle className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
+                {(c.status === "failed" || c.status === "system_error" || c.status === "cancelled" || c.status === "paused") && (
+                  <button
+                    onClick={() => caseAction(batchId, c.caseId, "retry")}
+                    disabled={caseActionsLoading[`${batchId}-${c.caseId}-retry`]}
+                    className="p-1 rounded text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-colors disabled:opacity-40"
+                    title="Retry case"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
                 )}
                 {c.completedAt && (
                   <span className="text-xs text-slate-600">

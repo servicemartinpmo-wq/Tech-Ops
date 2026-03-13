@@ -90,6 +90,7 @@ function AutoDeployPanel({
       }, 800);
       return () => { clearTimeout(delay); if (timerRef.current) clearInterval(timerRef.current); };
     }
+    return undefined;
   }, [autoMode, resolution, deploying, isRunning]);
 
   useEffect(() => {

@@ -23,8 +23,8 @@ const TIER_LIMITS: Record<string, {
   },
   professional: {
     maxCases: 100,
-    maxBatchConcurrency: 2,
-    maxConcurrentTickets: 2,
+    maxBatchConcurrency: 5,
+    maxConcurrentTickets: 5,
     features: [
       "advanced_diagnostics", "multi_connector", "preferences_quiz",
       "batch_execution", "automation_center", "cybersecurity_monitoring",
@@ -33,8 +33,8 @@ const TIER_LIMITS: Record<string, {
   },
   business: {
     maxCases: 500,
-    maxBatchConcurrency: 5,
-    maxConcurrentTickets: 5,
+    maxBatchConcurrency: 20,
+    maxConcurrentTickets: 20,
     features: [
       "full_diagnostics", "automation_center", "connector_monitoring",
       "batch_execution", "priority_support", "hipaa_compliance",
