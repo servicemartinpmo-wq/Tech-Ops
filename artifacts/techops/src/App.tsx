@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@workspace/replit-auth-web";
 
 import { Layout } from "@/components/layout";
-import { VoiceOrb } from "@/components/voice-orb";
+import { VoiceCompanion } from "@/components/voice-companion";
 import { TicketQueuePanel } from "@/components/ticket-queue-panel";
 import { CookieConsent } from "@/components/cookie-consent";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
@@ -25,7 +25,6 @@ import ConnectorDetail from "@/pages/connectors/detail";
 import AutomationCenter from "@/pages/automation";
 import BatchDiagnostics from "@/pages/batches";
 import SystemAlerts from "@/pages/alerts";
-import VoicePanel from "@/pages/voice";
 import Settings from "@/pages/settings";
 import Security from "@/pages/security";
 import StackIntelligence from "@/pages/stack-intelligence";
@@ -53,8 +52,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#08090c]">
-        <div className="w-10 h-10 border-2 border-violet-400 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -69,7 +68,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
         <Component />
       </ErrorBoundary>
       <TicketQueuePanel />
-      <VoiceOrb />
       <OnboardingWizard />
     </Layout>
   );
@@ -96,7 +94,6 @@ function Router() {
       <Route path="/automation"><ProtectedRoute component={AutomationCenter} /></Route>
       <Route path="/batches"><ProtectedRoute component={BatchDiagnostics} /></Route>
       <Route path="/alerts"><ProtectedRoute component={SystemAlerts} /></Route>
-      <Route path="/voice"><ProtectedRoute component={VoicePanel} /></Route>
       <Route path="/settings"><ProtectedRoute component={Settings} /></Route>
       <Route path="/security"><ProtectedRoute component={Security} /></Route>
       <Route path="/kb"><ProtectedRoute component={KnowledgeBase} /></Route>
@@ -120,6 +117,7 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
           <CookieConsent />
+          <VoiceCompanion />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

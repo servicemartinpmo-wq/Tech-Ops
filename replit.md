@@ -9,7 +9,7 @@
 ## User Preferences
 
 - **Brand**: "Tech-Ops by Martin PMO" — Apphia is the knowledge system/engine, never called "AI", "assistant", or "bot".
-- **Design**: Dark theme — deep navy/black backgrounds, violet/sky accent colors, glassmorphism cards.
+- **Design**: Light theme — white/slate-50 backgrounds, blue/indigo accent colors, clean card shadows. No dark backgrounds anywhere.
 - **No character/size limits** on any inputs.
 - **No Zod `max()` constraints** anywhere.
 - **No Stripe** — payment providers are UI-only: Zoho, Billsby, Chargebee, Fastspring, Square.
@@ -44,10 +44,11 @@ The project is built as a pnpm workspace monorepo using Node.js 24 and TypeScrip
 | Email + Password | `POST /api/auth/register`, `POST /api/auth/login` | bcryptjs hashing |
 | Magic Link | `POST /api/auth/magic-link/request`, `GET /api/auth/magic-link/verify` | Nodemailer; returns `devLink` in dev mode |
 | Session user | `GET /api/auth/user` | Returns `{ user }` or `{ user: null }` |
+| Creator Mode | `POST /api/auth/creator-login` | Key: `CREATOR_KEY` env var (default: `TechOpsPMO-Creator-2025`) |
 | Logout | `POST /api/auth/logout` | Clears `sid` cookie |
 
 **Session**: cookie `sid`, stored in `sessions` table, TTL 7 days.
-**Auth UI**: `/auth` page — 3 tabs (Google / Password / Magic Link). Registration has ToS checkbox.
+**Auth UI**: `/auth` page — 3 tabs (Google / Password / Magic Link) + hidden Creator Mode (Crown icon link at bottom). Light theme with PMO-Ops logo. Registration has ToS checkbox.
 
 **Env vars needed for full auth:**
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Google OAuth)

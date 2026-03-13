@@ -12,9 +12,8 @@ const PLANS = [
   {
     key: "starter",
     name: "Foundation",
-    price: "$49",
+    price: "$75",
     tagline: "Freelancers & solo operators",
-    mspEquiv: "vs. $100–$150/user MSP basic",
     color: "text-sky-400",
     bg: "bg-sky-500/10",
     border: "border-sky-500/20",
@@ -31,9 +30,8 @@ const PLANS = [
   {
     key: "professional",
     name: "Proactive",
-    price: "$149",
+    price: "$250",
     tagline: "Small teams of 2–15 users",
-    mspEquiv: "vs. $150–$225/user MSP standard",
     color: "text-violet-400",
     bg: "bg-violet-500/10",
     border: "border-violet-500/20",
@@ -52,9 +50,8 @@ const PLANS = [
   {
     key: "business",
     name: "Compliance",
-    price: "$399",
+    price: "$500",
     tagline: "SMBs of 15–75 users",
-    mspEquiv: "vs. $250–$350+/user MSP compliance",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/20",
@@ -168,7 +165,7 @@ function PlanModal({ plan, onClose }: { plan: typeof PLANS[number]; onClose: () 
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}>
       <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
-        className="bg-[#0d1117] border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl"
+        className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-2xl"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -176,7 +173,7 @@ function PlanModal({ plan, onClose }: { plan: typeof PLANS[number]; onClose: () 
               <plan.icon className={`w-5 h-5 ${plan.color}`} />
             </div>
             <div>
-              <h3 className="font-bold text-white">{plan.name}</h3>
+              <h3 className="font-bold text-slate-900">{plan.name}</h3>
               <p className="text-xs text-slate-500">{plan.price}{plan.price !== "Custom" ? "/mo" : ""}</p>
             </div>
           </div>
@@ -185,7 +182,7 @@ function PlanModal({ plan, onClose }: { plan: typeof PLANS[number]; onClose: () 
           </button>
         </div>
         <p className="text-sm text-slate-400 mb-5">
-          To activate the <span className="text-white font-semibold">{plan.name}</span> plan, connect one of the payment providers below and configure your subscription products.
+          To activate the <span className="text-slate-900 font-semibold">{plan.name}</span> plan, connect one of the payment providers below and configure your subscription products.
         </p>
         <div className="space-y-2 mb-5">
           {PROVIDERS.map(p => (
@@ -209,7 +206,7 @@ function ProviderModal({ provider, onClose }: { provider: typeof PROVIDERS[numbe
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}>
       <motion.div initial={{ scale: 0.96, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96 }}
-        className="bg-[#0d1117] border border-white/[0.08] rounded-2xl p-6 w-full max-w-lg shadow-2xl"
+        className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-lg shadow-2xl"
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${provider.bg} border ${provider.border}`}>
@@ -236,12 +233,12 @@ function ProviderModal({ provider, onClose }: { provider: typeof PROVIDERS[numbe
           </ul>
         </div>
 
-        <div className="mb-5 p-4 bg-white/[0.02] rounded-xl border border-white/[0.06]">
+        <div className="mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Required Secrets</p>
           <p className="text-xs text-slate-500 mb-3">Add these to your Replit Secrets panel, then restart the server:</p>
           <div className="space-y-1.5">
             {provider.configKeys.map(k => (
-              <div key={k} className="flex items-center gap-2 font-mono text-xs text-slate-300 bg-black/40 px-3 py-1.5 rounded-lg border border-white/[0.06]">
+              <div key={k} className="flex items-center gap-2 font-mono text-xs text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
                 <span className="text-slate-600">$</span>
                 {k}
               </div>
@@ -269,7 +266,7 @@ export default function Billing() {
     <div className="max-w-6xl mx-auto space-y-12">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center max-w-3xl mx-auto">
-        <h1 className="text-4xl font-display font-bold text-white">Simple, Transparent Pricing</h1>
+        <h1 className="text-4xl font-display font-bold text-slate-900">Simple, Transparent Pricing</h1>
         <p className="text-slate-400 mt-3 text-lg">Scale your autonomous operations engine as your infrastructure grows.</p>
         <div className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
           <Gift className="w-4 h-4 text-emerald-400" />
@@ -293,18 +290,15 @@ export default function Billing() {
                 <div className={`w-10 h-10 rounded-2xl ${plan.bg} border ${plan.border} flex items-center justify-center mb-4`}>
                   <plan.icon className={`w-5 h-5 ${plan.color}`} />
                 </div>
-                <h3 className="text-xl font-display font-bold text-white">{plan.name}</h3>
+                <h3 className="text-xl font-display font-bold text-slate-900">{plan.name}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{plan.tagline}</p>
               </div>
 
               <div className="mb-6">
                 <div className="flex items-end gap-1">
-                  <span className="text-4xl font-display font-bold text-white">{plan.price}</span>
+                  <span className="text-4xl font-display font-bold text-slate-900">{plan.price}</span>
                   {plan.price !== "Custom" && <span className="text-slate-500 font-medium mb-1">/mo</span>}
                 </div>
-                {"mspEquiv" in plan && plan.mspEquiv && (
-                  <p className="text-[10px] font-semibold tracking-wide text-slate-600 uppercase mt-1">{plan.mspEquiv}</p>
-                )}
               </div>
 
               <ul className="space-y-2 flex-1 mb-6">
@@ -323,7 +317,7 @@ export default function Billing() {
                     ? `border ${plan.border} ${plan.color} hover:${plan.bg}`
                     : ("popular" in plan && plan.popular)
                     ? "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.2)]"
-                    : "bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 border border-white/[0.08]"
+                    : "bg-slate-100 hover:bg-slate-100 text-slate-700 border border-slate-200"
                 }`}>
                 {plan.key === "enterprise" ? "Contact Sales" : "Choose Plan"}
                 <ChevronRight className="w-4 h-4" />
@@ -337,7 +331,7 @@ export default function Billing() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
         <div className="flex items-center gap-3 mb-5">
           <CreditCard className="w-5 h-5 text-slate-400" />
-          <h2 className="text-xl font-bold text-white">Payment Providers</h2>
+          <h2 className="text-xl font-bold text-slate-900">Payment Providers</h2>
           <Badge variant="warning" className="text-xs">Setup Required</Badge>
         </div>
         <p className="text-sm text-slate-500 mb-6 max-w-2xl">
@@ -361,7 +355,7 @@ export default function Billing() {
               <p className="text-xs text-slate-500 leading-relaxed">{provider.tagline}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {provider.features.slice(0, 2).map(f => (
-                  <span key={f} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/[0.04] border border-white/[0.06] text-slate-500">
+                  <span key={f} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 border border-slate-200 text-slate-600">
                     {f}
                   </span>
                 ))}
@@ -374,7 +368,7 @@ export default function Billing() {
       {/* Footer note */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
         className="text-center">
-        <div className="inline-flex items-center gap-3 p-4 bg-white/[0.03] rounded-2xl text-slate-500 border border-white/[0.06]">
+        <div className="inline-flex items-center gap-3 p-4 bg-slate-50 rounded-2xl text-slate-500 border border-slate-100">
           <Shield className="w-5 h-5 text-slate-600" />
           <span className="text-sm font-medium">Payment provider integration in progress · Cancel anytime · No long-term contracts</span>
         </div>
