@@ -1,5 +1,5 @@
 import {
-  pgTable, text, serial, timestamp, integer, jsonb, boolean, index,
+  pgTable, text, serial, timestamp, integer, jsonb, boolean, index, varchar,
 } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
@@ -176,3 +176,44 @@ export const insertHostedDomainSchema = z.object({
   registrar: z.string().optional(),
   autoRenewSsl: z.boolean().optional().default(true),
 });
+
+export const websiteContentsTable = pgTable("website_contents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  userId: text("user_id").notNull(),
+  html: text("html").notNull().default(""),
+  css: text("css").notNull().default(""),
+  js: text("js").notNull().default(""),
+  config: jsonb("config").$type<Record<string, unknown>>().default({}),
+  pageName: varchar("page_name", { length: 255 }).notNull().default("index"),
+  version: integer("version").notNull().default(1),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  publishedVersion: integer("published_version"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("website_contents_project_idx").on(table.projectId),
+  index("website_contents_user_idx").on(table.userId),
+]);
+
+export type WebsiteContent = typeof websiteContentsTable.$inferSelect;
+export type InsertWebsiteContent = typeof websiteContentsTable.$inferInsert;
+
+export const websiteDeploymentsTable = pgTable("website_deployments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  userId: text("user_id").notNull(),
+  version: integer("version").notNull(),
+  status: text("status").notNull().default("queued"),
+  deployedUrl: text("deployed_url"),
+  buildLog: text("build_log").default(""),
+  triggeredBy: text("triggered_by").notNull().default("manual"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("website_deployments_project_idx").on(table.projectId),
+  index("website_deployments_user_idx").on(table.userId),
+]);
+
+export type WebsiteDeployment = typeof websiteDeploymentsTable.$inferSelect;
+export type InsertWebsiteDeployment = typeof websiteDeploymentsTable.$inferInsert;

@@ -37,6 +37,7 @@ import SecureVault from "@/pages/secure-vault";
 import IssueLog from "@/pages/issue-log";
 import Analytics from "@/pages/analytics";
 import SiteBuilder from "@/pages/site-builder";
+import BuilderConnect from "@/pages/builder";
 import AdminPanel from "@/pages/admin";
 import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
@@ -107,6 +108,7 @@ function Router() {
       <Route path="/issue-log"><ProtectedRoute component={IssueLog} /></Route>
       <Route path="/analytics"><ProtectedRoute component={Analytics} /></Route>
       <Route path="/site-builder"><ProtectedRoute component={SiteBuilder} /></Route>
+      <Route path="/builder"><ProtectedRoute component={BuilderConnect} /></Route>
       <Route path="/admin"><ProtectedRoute component={AdminPanel} /></Route>
       <Route component={NotFound} />
     </Switch>

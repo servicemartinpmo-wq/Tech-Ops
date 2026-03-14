@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, varchar, serial } from "drizzle-orm/pg-core";
 
 export const sessionsTable = pgTable(
   "sessions",
@@ -48,3 +48,22 @@ export const magicLinksTable = pgTable(
   },
   (table) => [index("IDX_magic_links_token").on(table.token)],
 );
+
+export const apiKeysTable = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  keyHash: varchar("key_hash", { length: 255 }).notNull().unique(),
+  keyPrefix: varchar("key_prefix", { length: 10 }).notNull(),
+  scopes: jsonb("scopes").$type<string[]>().default(["hosting:read", "hosting:write", "builder:full"]),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  revoked: boolean("revoked").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("api_keys_user_idx").on(table.userId),
+  index("api_keys_hash_idx").on(table.keyHash),
+]);
+
+export type ApiKey = typeof apiKeysTable.$inferSelect;
+export type InsertApiKey = typeof apiKeysTable.$inferInsert;

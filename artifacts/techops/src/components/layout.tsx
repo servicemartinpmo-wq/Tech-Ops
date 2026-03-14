@@ -29,7 +29,8 @@ import {
   Headphones,
   Globe,
   Crown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Blocks
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -239,6 +240,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <div className="space-y-0.5">
                 {[
                   { href: "/site-builder", label: "Site Builder", icon: Globe },
+                  { href: "/builder",  label: "B-Stage Connect",    icon: Blocks             },
                   { href: "/admin",    label: "Admin Panel",        icon: SlidersHorizontal  },
                 ].map(item => {
                   const isActive = location === item.href || (item.href.length > 1 && location.startsWith(item.href));
