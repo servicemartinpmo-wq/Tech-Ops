@@ -158,45 +158,9 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   res.json({ user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
 });
 
-// ── Creator Login ─────────────────────────────────────────────────────────────
+// ── Creator Email ──────────────────────────────────────────────────────────────
 
-const CREATOR_EMAIL = "martin@techopspmo.com";
-
-router.post("/auth/creator-login", async (req: Request, res: Response) => {
-  const { creatorKey } = req.body as { creatorKey?: string };
-  const expected = process.env.CREATOR_KEY || "TechOpsPMO-Creator-2025";
-
-  if (!creatorKey || creatorKey !== expected) {
-    res.status(401).json({ error: "Invalid creator key. Access denied." });
-    return;
-  }
-
-  let [creator] = await db.select().from(usersTable).where(eq(usersTable.email, CREATOR_EMAIL)).limit(1);
-  if (!creator) {
-    creator = await upsertUser({
-      email: CREATOR_EMAIL,
-      firstName: "Martin",
-      lastName: "PMO",
-      authProvider: "creator",
-    });
-  }
-
-  // Ensure creator has admin role
-  await db.update(usersTable).set({ role: "admin", updatedAt: new Date() }).where(eq(usersTable.id, creator.id));
-  creator = { ...creator, role: "admin" };
-
-  const sid = await createSession({
-    user: {
-      id: creator.id,
-      email: creator.email ?? undefined,
-      firstName: creator.firstName ?? "Martin",
-      lastName: creator.lastName ?? "PMO",
-      profileImageUrl: creator.profileImageUrl ?? undefined,
-    },
-  });
-  setSessionCookie(res, sid);
-  res.json({ success: true, role: "admin", message: "Creator mode activated" });
-});
+const CREATOR_EMAIL = "service.martinpmo@gmail.com";
 
 // ── Magic Link ─────────────────────────────────────────────────────────────────
 
@@ -267,6 +231,12 @@ router.get("/auth/magic-link/verify", async (req: Request, res: Response) => {
 
   if (!user) {
     user = await upsertUser({ email: emailNorm, authProvider: "magic_link" });
+  }
+
+  // Automatically grant admin role to creator email
+  if (emailNorm === CREATOR_EMAIL.toLowerCase()) {
+    await db.update(usersTable).set({ role: "admin", updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    user = { ...user, role: "admin" };
   }
 
   const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });
@@ -384,6 +354,12 @@ router.get("/auth/google/callback", async (req: Request, res: Response) => {
     user = { ...user, googleId, profileImageUrl: picture };
   } else {
     user = await upsertUser({ email, googleId, firstName: firstName || null, lastName, profileImageUrl: picture, authProvider: "google" });
+  }
+
+  // Automatically grant admin role to creator email
+  if (email && email.toLowerCase() === CREATOR_EMAIL.toLowerCase()) {
+    await db.update(usersTable).set({ role: "admin", updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+    user = { ...user, role: "admin" };
   }
 
   const sid = await createSession({ user: { id: user.id, email: user.email ?? undefined, firstName: user.firstName ?? undefined, lastName: user.lastName ?? undefined, profileImageUrl: user.profileImageUrl ?? undefined } });

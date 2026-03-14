@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Redirect, useLocation, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, AlertCircle, Crown } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 
 const BASE = import.meta.env.BASE_URL?.replace(/\/+$/, "") || "";
 
-type Tab = "google" | "password" | "magic" | "creator";
+type Tab = "google" | "password" | "magic";
 type Mode = "login" | "register";
 
 function LightInput({
@@ -41,8 +41,6 @@ export default function AuthPage() {
   const [showPass, setShowPass]   = useState(false);
   const [tosAccepted, setTosAccepted] = useState(false);
 
-  const [creatorKey, setCreatorKey] = useState("");
-  const [showCreatorKey, setShowCreatorKey] = useState(false);
 
   const [busy, setBusy]       = useState(false);
   const [success, setSuccess] = useState("");
@@ -110,22 +108,6 @@ export default function AuthPage() {
     } catch { setError("Network error. Please try again."); } finally { setBusy(false); }
   };
 
-  const handleCreatorLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearMessages();
-    if (!creatorKey.trim()) { setError("Creator key is required"); return; }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/auth/creator-login", {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ creatorKey: creatorKey.trim() }),
-      });
-      const data = await res.json() as { error?: string };
-      if (!res.ok) { setError(data.error || "Invalid creator key"); return; }
-      window.location.href = returnTo;
-    } catch { setError("Network error. Please try again."); } finally { setBusy(false); }
-  };
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "google", label: "Google" },
@@ -274,38 +256,6 @@ export default function AuthPage() {
               </motion.div>
             )}
 
-            {/* ── Creator Mode ── */}
-            {tab === "creator" && (
-              <motion.div key="creator" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }} transition={{ duration: 0.15 }}>
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4 mb-5 flex items-start gap-3">
-                  <Crown className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Creator Mode</p>
-                    <p className="text-xs text-amber-600 mt-0.5">Full platform access reserved for the platform creator.</p>
-                  </div>
-                </div>
-                <form onSubmit={e => void handleCreatorLogin(e)} className="space-y-4">
-                  <LightInput
-                    type={showCreatorKey ? "text" : "password"}
-                    placeholder="Creator access key"
-                    value={creatorKey}
-                    onChange={setCreatorKey}
-                    icon={Crown}
-                    disabled={busy}
-                    rightEl={
-                      <button type="button" onClick={() => setShowCreatorKey(s => !s)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                        {showCreatorKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    }
-                  />
-                  <button type="submit" disabled={busy}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-semibold text-sm hover:from-amber-400 hover:to-yellow-400 transition-all disabled:opacity-50 shadow-md shadow-amber-200">
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crown className="w-4 h-4" />}
-                    Enter Creator Mode
-                  </button>
-                </form>
-              </motion.div>
-            )}
           </AnimatePresence>
 
           <AnimatePresence>
