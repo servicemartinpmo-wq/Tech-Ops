@@ -181,6 +181,10 @@ router.post("/auth/creator-login", async (req: Request, res: Response) => {
     });
   }
 
+  // Ensure creator has admin role
+  await db.update(usersTable).set({ role: "admin", updatedAt: new Date() }).where(eq(usersTable.id, creator.id));
+  creator = { ...creator, role: "admin" };
+
   const sid = await createSession({
     user: {
       id: creator.id,
